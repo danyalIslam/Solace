@@ -5,7 +5,7 @@ const { CLIENT, SERVER } = require("./events");
 const createRoomHandler = require("./handlers/roomHandler");
 const createPlaybackHandler = require("./handlers/playbackHandler");
 const createWallpaperHandler = require("./handlers/wallpaperHandler");
-const createChatHandler = require("./handlers/chatHandler");
+const createActivityHandler = require("./handlers/activityHandler");
 const { createRtcHandler, resolveIceServers } = require("./handlers/rtcHandler");
 
 function createSocketServer(httpServer) {
@@ -21,7 +21,7 @@ function createSocketServer(httpServer) {
     const playbackHandler = createPlaybackHandler(io, roomService);
     const wallpaperHandler = createWallpaperHandler(io, roomService);
     const rtcHandler = createRtcHandler(io, roomService);
-    const chatHandler = createChatHandler(io, roomService);
+    const activityHandler = createActivityHandler(io, roomService);
 
     io.on("connection", (socket) => {
         socket.emit(SERVER.RTC_CONFIG, { iceServers: resolveIceServers(process.env) });
@@ -39,13 +39,17 @@ function createSocketServer(httpServer) {
         socket.on(CLIENT.RTC_OFFER, (payload) => rtcHandler.handleOffer(socket, payload));
         socket.on(CLIENT.RTC_ANSWER, (payload) => rtcHandler.handleAnswer(socket, payload));
         socket.on(CLIENT.RTC_ICE, (payload) => rtcHandler.handleIce(socket, payload));
-        socket.on(CLIENT.CHAT_SEND, (payload) => chatHandler.handleSend(socket, payload));
+        socket.on(CLIENT.ACTIVITY_SEND, (payload) => activityHandler.handleSend(socket, payload));
 
         socket.on("disconnect", () => {
             const room = roomService.resolveRoomBySocket(socket.id);
             if (!room) return;
+            const member = room.members.get(socket.id);
+            const displayName = member ? member.displayName : "unknown";
             roomService.leaveRoom(room.id, socket.id);
+            const { entry } = roomService.appendActivity(room.id, { type: "system", actor: { socketId: socket.id, displayName }, detail: "left" });
             socket.to(room.id).emit(SERVER.ROOM_MEMBER_LEFT, { socketId: socket.id });
+            socket.to(room.id).emit(SERVER.ROOM_ACTIVITY, { entry });
         });
     });
 

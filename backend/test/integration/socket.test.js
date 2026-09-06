@@ -350,6 +350,32 @@ describe("WebRTC relay + media presence", () => {
     });
 });
 
+describe("activity", () => {
+    test("activity:send -> room:activity broadcast with chat entry to both members", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        const { client: guest } = await joinRoom(port, roomId, "Guest");
+
+        const guestP = waitForEvent(guest, "room:activity", (p) => p.entry && p.entry.type === "chat");
+        const hostP = waitForEvent(host, "room:activity", (p) => p.entry && p.entry.type === "chat");
+        host.emit("activity:send", { text: "hey room" });
+        const g = await guestP;
+        const h = await hostP;
+        assert.equal(g.entry.detail, "hey room");
+        assert.equal(g.entry.actor.displayName, "Host");
+        assert.equal(h.entry.detail, "hey room");
+    });
+
+    test("join produces system entry visible to late joiner snapshot", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        const { client: guest, joined } = await joinRoom(port, roomId, "Guest");
+        const sys = await waitForEvent(host, "room:activity", (p) => p.entry && p.entry.type === "system");
+        assert.ok(sys.entry.detail.length > 0);
+        assert.ok(joined.state.activity.length >= 1, "late joiner sees prior activity");
+    });
+});
+
 describe("room title", () => {
     test("host sets title -> room:title_state broadcast to guest with changedBy", async () => {
         const { port } = await boot();

@@ -11,6 +11,11 @@ function createRoomHandler(io, roomService) {
                 const displayName = payload && payload.displayName;
                 const { roomId, room } = roomService.createRoom(displayName, socket.id);
                 socket.join(roomId);
+                roomService.appendActivity(roomId, {
+                    type: "system",
+                    actor: { socketId: socket.id, displayName },
+                    detail: "created room"
+                });
                 const pub = room.toPublicState();
                 socket.emit(SERVER.ROOM_CREATED, {
                     roomId,
@@ -28,6 +33,11 @@ function createRoomHandler(io, roomService) {
                 const displayName = payload && payload.displayName;
                 const room = roomService.joinRoom(roomId, socket.id, displayName);
                 socket.join(roomId);
+                const { entry: joinEntry } = roomService.appendActivity(roomId, {
+                    type: "system",
+                    actor: { socketId: socket.id, displayName },
+                    detail: "joined"
+                });
                 const pub = room.toPublicState();
                 socket.emit(SERVER.ROOM_JOINED, {
                     roomId,
@@ -37,6 +47,7 @@ function createRoomHandler(io, roomService) {
                 socket.to(roomId).emit(SERVER.ROOM_MEMBER_JOINED, {
                     member: pub.members.find((m) => m.socketId === socket.id)
                 });
+                io.to(roomId).emit(SERVER.ROOM_ACTIVITY, { entry: joinEntry });
             } catch (err) {
                 emitError(socket, err);
             }
@@ -52,9 +63,13 @@ function createRoomHandler(io, roomService) {
                     });
                     return;
                 }
+                const member = room.members.get(socket.id);
+                const displayName = member ? member.displayName : "unknown";
                 roomService.leaveRoom(room.id, socket.id);
+                const { entry } = roomService.appendActivity(room.id, { type: "system", actor: { socketId: socket.id, displayName }, detail: "left" });
                 socket.leave(room.id);
                 socket.to(room.id).emit(SERVER.ROOM_MEMBER_LEFT, { socketId: socket.id });
+                socket.to(room.id).emit(SERVER.ROOM_ACTIVITY, { entry });
             } catch (err) {
                 emitError(socket, err);
             }
