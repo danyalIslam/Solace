@@ -17,7 +17,11 @@ class Room {
     }
 
     addMember(socketId, member) {
-        this.members.set(socketId, member);
+        this.members.set(socketId, {
+            ...member,
+            audioOn: false,
+            videoOn: false
+        });
     }
 
     removeMember(socketId) {
@@ -30,7 +34,9 @@ class Room {
             members: Array.from(this.members.entries()).map(([socketId, member]) => ({
                 socketId,
                 displayName: member.displayName,
-                isHost: member.isHost
+                isHost: member.isHost,
+                audioOn: member.audioOn,
+                videoOn: member.videoOn
             })),
             state: this.state
         };

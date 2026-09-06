@@ -56,4 +56,14 @@ describe("Room entity", () => {
         assert.ok(!("joinedAt" in m), "joinedAt must not leak to public state");
         assert.deepEqual(pub.state, room.state);
     });
+
+    test("members default to media off and snapshot carries flags", () => {
+        const room = new Room("ABC123");
+        room.addMember("s1", { displayName: "A", joinedAt: 1, isHost: true });
+        const pub = room.toPublicState();
+        const m = pub.members.find((x) => x.socketId === "s1");
+        assert.equal(m.displayName, "A");
+        assert.equal(m.audioOn, false);
+        assert.equal(m.videoOn, false);
+    });
 });
