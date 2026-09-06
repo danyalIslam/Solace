@@ -65,9 +65,9 @@ function createRtcHandler(io, roomService) {
                 emitError(socket, err);
             }
         },
-        handleOffer(socket, payload) { relay(CLIENT.RTC_OFFER, socket, payload, "sdp"); },
-        handleAnswer(socket, payload) { relay(CLIENT.RTC_ANSWER, socket, payload, "sdp"); },
-        handleIce(socket, payload) { relay(CLIENT.RTC_ICE, socket, payload, "candidate"); }
+        handleOffer(socket, payload) { relay(SERVER.RTC_OFFER, socket, payload, "sdp"); },
+        handleAnswer(socket, payload) { relay(SERVER.RTC_ANSWER, socket, payload, "sdp"); },
+        handleIce(socket, payload) { relay(SERVER.RTC_ICE, socket, payload, "candidate"); }
     };
 }
 
