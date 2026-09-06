@@ -109,6 +109,32 @@ async function scenario() {
         const wall = await wallP;
         pass("wallpaper syncs host -> guest", `changedBy=${String(wall.changedBy).slice(0, 8)}…`);
 
+        // 4b. upload a real wallpaper file over HTTP
+        const baseUrl = url || `http://localhost:${portOf()}`;
+        const pngBytes = Buffer.concat([
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+            Buffer.alloc(64)
+        ]);
+        const formData = new FormData();
+        formData.append("roomId", roomId);
+        formData.append("file", new Blob([pngBytes]), "smoke-wall.png");
+        // bind before upload: the room broadcast lands while the HTTP response
+        // is still round-tripping, so a late listener can miss it
+        const libP = waitFor(B, "wallpaper:uploads", (p) => p.uploads && p.uploads.length >= 1);
+        const upRes = await fetch(`${baseUrl}/uploads`, { method: "POST", body: formData });
+        const upBody = await upRes.json();
+        if (upRes.status !== 201) throw new Error(`upload failed ${upRes.status}`);
+        const lib = await libP;
+        if (!lib.uploads.some((u) => u.url === upBody.url)) throw new Error("upload url missing from library");
+        if (upBody.kind !== "image") throw new Error("kind not image");
+        pass("upload -> uploads library broadcast", `url=${upBody.url.slice(0, 24)}… kind=${upBody.kind}`);
+
+        // 4c. live (video) wallpaper round trip
+        const vidP = waitFor(B, "wallpaper:state", (p) => p.url === "http://smoke/live.webm" && p.kind === "video");
+        A.emit("wallpaper:set", { url: "http://smoke/live.webm", kind: "video" });
+        const vid = await vidP;
+        pass("video wallpaper syncs host -> guest", `kind=${vid.kind}`);
+
         // 5. host plays track -> guest receives playback state
         const playP = waitFor(B, "playback:state", (p) => p.status === "playing");
         A.emit("playback:play", { track: { url: "http://smoke/track.m3u8", title: "Smoke Track", artist: "Smoke" } });
@@ -169,9 +195,13 @@ async function scenario() {
         const { socket: observer } = await connect("Observer");
         const obJoinedP = waitFor(observer, "room:joined", (p) => p.state && p.state.title === "Smoke Room");
         observer.emit("room:join", { roomId, displayName: "Observer" });
-        await obJoinedP;
+        const obJoined = await obJoinedP;
+        if (!obJoined.state.wallpapers || obJoined.state.wallpapers.length < 1) {
+            throw new Error("late joiner snapshot missing wallpapers library");
+        }
         await closeSocket(observer);
-        pass("late joiner snapshot carries room title", "state.title=Smoke Room");
+        pass("late joiner snapshot carries room title",
+            `state.title=${obJoined.state.title} (wallpapers=${obJoined.state.wallpapers.length})`);
 
         console.log(`\nsmoke: ${steps.filter((s) => s.ok).length}/${steps.length} steps passed`);
         return steps.every((s) => s.ok);
