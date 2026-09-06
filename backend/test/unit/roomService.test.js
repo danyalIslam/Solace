@@ -188,6 +188,72 @@ describe("RoomService", () => {
             assert.equal(url, "http://wall/1.png");
             assert.equal(room.state.wallpaper.url, "http://wall/1.png");
         });
+
+        test("accepts video kind and records changedBy + updatedAt", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            const { room, url, kind } = service.setWallpaper(roomId, socketId, "http://x/w.webm", "video");
+            assert.equal(room.state.wallpaper.url, "http://x/w.webm");
+            assert.equal(room.state.wallpaper.kind, "video");
+            assert.equal(room.state.wallpaper.changedBy, socketId);
+            assert.ok(Number.isFinite(room.state.wallpaper.updatedAt));
+            assert.equal(url, "http://x/w.webm");
+            assert.equal(kind, "video");
+        });
+
+        test("defaults kind to image when omitted", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            const { kind } = service.setWallpaper(roomId, socketId, "http://x/i.png");
+            assert.equal(kind, "image");
+        });
+
+        test("rejects unknown kind", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            assert.throws(() => service.setWallpaper(roomId, socketId, "http://x/i.png", "hologram"), /kind/i);
+        });
+
+        test("keeps existing kind on plain url set", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            service.setWallpaper(roomId, socketId, "http://x/v.mp4", "video");
+            service.setWallpaper(roomId, socketId, "http://x/v2.mp4");
+            assert.equal(service.getState(roomId).state.wallpaper.kind, "video");
+        });
+    });
+
+    describe("addUpload", () => {
+        test("appends to library and returns uploads + evicted null", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            for (let i = 0; i < 3; i++) {
+                const meta = { id: `id${i}`, url: `/uploads/${roomId}/f${i}.png`, kind: "image", size: 10, originalName: `f${i}.png`, uploadedBy: socketId, uploadedAt: i };
+                const { evicted } = service.addUpload(roomId, meta);
+                assert.equal(evicted, null);
+            }
+            assert.equal(service.getState(roomId).state.wallpapers.length, 3);
+        });
+
+        test("evicts oldest non-active when library exceeds 3", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            const metaFor = (i, url = `/uploads/${roomId}/f${i}.png`) => ({ id: `id${i}`, url, kind: "image", size: 10, originalName: `f${i}.png`, uploadedBy: socketId, uploadedAt: i });
+            service.addUpload(roomId, metaFor(0));
+            service.addUpload(roomId, metaFor(1));
+            service.addUpload(roomId, metaFor(2));
+            const r3 = service.addUpload(roomId, metaFor(3));
+            assert.equal(r3.evicted.url, `/uploads/${roomId}/f0.png`);
+            const room = service.getState(roomId);
+            assert.equal(room.state.wallpapers.length, 3);
+            assert.ok(!room.state.wallpapers.some((w) => w.url === `/uploads/${roomId}/f0.png`), "oldest evicted");
+        });
+
+        test("never evicts the active wallpaper", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            const activeUrl = `/uploads/${roomId}/f0.png`;
+            service.setWallpaper(roomId, socketId, activeUrl, "image");
+            for (let i = 0; i < 4; i++) {
+                service.addUpload(roomId, { id: `id${i}`, url: i === 0 ? activeUrl : `/uploads/${roomId}/f${i}.png`, kind: "image", size: 10, originalName: `f${i}.png`, uploadedBy: socketId, uploadedAt: i });
+            }
+            const room = service.getState(roomId);
+            assert.equal(room.state.wallpapers.length, 3);
+            assert.ok(room.state.wallpapers.some((w) => w.url === activeUrl), "active wallpaper survives eviction");
+        });
     });
 
     describe("sendActivity (chat type)", () => {

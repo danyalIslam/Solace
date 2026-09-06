@@ -3,6 +3,8 @@ const Room = require("./Room");
 const MAX_ROOM_MEMBERS = 4;
 const MAX_DISPLAY_NAME_LENGTH = 24;
 const MAX_WALLPAPER_URL_LENGTH = 2048;
+const WALLPAPER_KINDS = ["image", "video"];
+const MAX_ROOM_UPLOADS = 3;
 const MAX_ACTIVITY_HISTORY = 50;
 const MAX_CHAT_TEXT_LENGTH = 500;
 const MAX_ROOM_TITLE_LENGTH = 60;
@@ -161,14 +163,35 @@ class RoomService {
         return { room, change };
     }
 
-    setWallpaper(roomId, socketId, url) {
+    setWallpaper(roomId, socketId, url, kind) {
         const room = this._assertRoom(roomId);
         this._assertMember(room, socketId);
         if (typeof url !== "string" || url.length === 0 || url.length > MAX_WALLPAPER_URL_LENGTH) {
             throw new InvalidPayloadError(`url must be a non-empty string of at most ${MAX_WALLPAPER_URL_LENGTH} chars`);
         }
+        const nextKind = kind === undefined ? room.state.wallpaper.kind : kind;
+        if (!WALLPAPER_KINDS.includes(nextKind)) {
+            throw new InvalidPayloadError(`kind must be one of ${WALLPAPER_KINDS.join(", ")}`);
+        }
         room.state.wallpaper.url = url;
-        return { room, url };
+        room.state.wallpaper.kind = nextKind;
+        room.state.wallpaper.changedBy = socketId;
+        room.state.wallpaper.updatedAt = Date.now();
+        return { room, url, kind: nextKind };
+    }
+
+    addUpload(roomId, meta) {
+        const room = this._assertRoom(roomId);
+        room.state.wallpapers.push(meta);
+        let evicted = null;
+        while (room.state.wallpapers.length > MAX_ROOM_UPLOADS) {
+            const victim = room.state.wallpapers.find((w) => w.url !== room.state.wallpaper.url);
+            if (!victim) break;
+            const idx = room.state.wallpapers.indexOf(victim);
+            room.state.wallpapers.splice(idx, 1);
+            evicted = victim;
+        }
+        return { room, uploads: room.state.wallpapers, evicted };
     }
 
     appendActivity(roomId, { type, actor, detail }) {
