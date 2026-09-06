@@ -36,8 +36,8 @@ function sniffKind(buffer) {
     return { kind: sig.kind, ext: sig.ext, contentType: sig.mime };
 }
 
-function assertInsideRoot(absPath) {
-    const rel = path.relative(ROOT(), absPath);
+function assertInsideRoot(root, absPath) {
+    const rel = path.relative(root, absPath);
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
         throw new Error("Invalid upload path");
     }
@@ -52,7 +52,7 @@ function createUploadStore() {
         const roomDir = path.join(root, roomId);
         fs.mkdirSync(roomDir, { recursive: true });
         const abs = path.join(roomDir, fileName);
-        assertInsideRoot(abs);
+        assertInsideRoot(root, abs);
         fs.writeFileSync(abs, buffer);
         return { url: `/uploads/${roomId}/${fileName}` };
     }
@@ -68,7 +68,7 @@ function createUploadStore() {
     function deleteByUrl(url) {
         if (typeof url !== "string" || !url.startsWith("/uploads/")) throw new Error("Invalid upload path");
         const abs = path.join(root, url.replace(/^\/uploads\//, ""));
-        assertInsideRoot(abs);
+        assertInsideRoot(root, abs);
         fs.rmSync(abs, { force: true });
     }
 

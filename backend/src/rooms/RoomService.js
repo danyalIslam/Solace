@@ -189,10 +189,9 @@ class RoomService {
         room.state.wallpapers.push(meta);
         let evicted = null;
         while (room.state.wallpapers.length > MAX_ROOM_UPLOADS) {
-            const victim = room.state.wallpapers.find((w) => w.url !== room.state.wallpaper.url);
-            if (!victim) break;
-            const idx = room.state.wallpapers.indexOf(victim);
-            room.state.wallpapers.splice(idx, 1);
+            const idx = room.state.wallpapers.findIndex((w) => w.url !== room.state.wallpaper.url);
+            const victimIndex = idx === -1 ? 0 : idx;
+            const [victim] = room.state.wallpapers.splice(victimIndex, 1);
             evicted = victim;
         }
         return { room, uploads: room.state.wallpapers, evicted };

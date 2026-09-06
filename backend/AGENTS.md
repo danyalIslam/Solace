@@ -39,7 +39,9 @@ backend/
 ├── test/
 │   ├── helpers/startServer.js  startTestServer/connectClient/waitForEvent/closeSocket/closeServer; per-boot tmp UPLOADS_DIR
 │   ├── unit/               Room, RoomService, MemoryRoomStore, rtcHandler, uploadStore tests
-│   └── integration/socket.test.js  boot/track/createRoom/joinRoom helpers; full E2E over real socket.io
+│   ├── integration/
+│   │   ├── socket.test.js      boot/track/createRoom/joinRoom helpers; full E2E over real socket.io
+│   │   └── uploads.test.js     HTTP upload endpoint (happy, 415, 413, eviction, GET serve, traversal)
 ├── scripts/
 │   ├── smoke.js            E2E smoke runner (two real clients, full surface, CI-friendly exit code)
 │   └── socket-cli.js       Interactive REPL socket.io tester (help lists commands)

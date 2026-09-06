@@ -147,4 +147,28 @@ describe("uploads", () => {
         const { joined } = await joinRoom(port, roomId, "Obs");
         assert.equal(joined.state.wallpapers.length, 1);
     });
+
+    test("serves an uploaded file back with cache headers", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        const { body } = await upload(port, roomId, PNG, "served.png");
+        const res = await fetch(`http://127.0.0.1:${port}${body.url}`);
+        assert.equal(res.status, 200);
+        assert.match(res.headers.get("content-type"), /image\/png/);
+        assert.match(res.headers.get("cache-control"), /immutable/);
+        const bytes = Buffer.from(await res.arrayBuffer());
+        assert.ok(bytes.subarray(0, 8).equals(PNG.subarray(0, 8)), "served same file bytes");
+    });
+
+    test("GET unknown upload 404s", async () => {
+        const { port } = await boot();
+        const res = await fetch(`http://127.0.0.1:${port}/uploads/NOPE/nope.png`);
+        assert.equal(res.status, 404);
+    });
+
+    test("GET traversal attempt does not escape uploads root", async () => {
+        const { port } = await boot();
+        const res = await fetch(`http://127.0.0.1:${port}/uploads/%2E%2E/%2E%2E/package.json`);
+        assert.equal(res.status, 404);
+    });
 });

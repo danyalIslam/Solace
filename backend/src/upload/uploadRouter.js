@@ -15,7 +15,7 @@ function createUploadRouter(roomService) {
         const ext = "." + req.params.file.split(".").pop();
         res.set("Cache-Control", "public, max-age=31536000, immutable");
         res.set("Content-Type", store.contentTypeOf(ext));
-        res.sendFile(path.join(store.root, req.params.roomId, req.params.file), (err) => {
+        res.sendFile(path.join(req.params.roomId, req.params.file), { root: store.root }, (err) => {
             if (err) res.status(404).json({ error: "NOT_FOUND" });
         });
     });

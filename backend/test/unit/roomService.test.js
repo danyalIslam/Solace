@@ -243,6 +243,16 @@ describe("RoomService", () => {
             assert.ok(!room.state.wallpapers.some((w) => w.url === `/uploads/${roomId}/f0.png`), "oldest evicted");
         });
 
+        test("hard-caps even when every entry shares the active url", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            const url = `/uploads/${roomId}/same.png`;
+            service.setWallpaper(roomId, socketId, url, "image");
+            for (let i = 0; i < 5; i++) {
+                service.addUpload(roomId, { id: `id${i}`, url, kind: "image", size: 10, originalName: "same.png", uploadedBy: socketId, uploadedAt: i });
+            }
+            assert.equal(service.getState(roomId).state.wallpapers.length, 3);
+        });
+
         test("never evicts the active wallpaper", () => {
             const { roomId } = service.createRoom("H", socketId);
             const activeUrl = `/uploads/${roomId}/f0.png`;
