@@ -15,8 +15,11 @@ describe("Room entity", () => {
             updatedAt: room.state.playback.updatedAt
         });
         assert.deepEqual(room.state.wallpaper, { url: null });
-        assert.deepEqual(room.state.chat, []);
+        assert.deepEqual(room.state.activity, []);
         assert.equal(room.state.title, "");
+        assert.equal(room.state.timer.status, "idle");
+        assert.equal(room.state.timer.endsAt, null);
+        assert.equal(typeof room.state.timer.updatedAt, "number");
     });
 
     test("addMember / removeMember", () => {
@@ -57,6 +60,15 @@ describe("Room entity", () => {
         assert.ok(!("joinedAt" in m), "joinedAt must not leak to public state");
         assert.deepEqual(pub.state, room.state);
         assert.equal(pub.state.title, "");
+    });
+
+    test("room state exposes activity and timer defaults", () => {
+        const room = new Room("ABC123");
+        assert.deepEqual(room.state.activity, []);
+        assert.equal(room.state.timer.status, "idle");
+        assert.equal(room.state.timer.endsAt, null);
+        assert.equal(typeof room.state.timer.updatedAt, "number");
+        assert.ok(!("chat" in room.state), "chat must be removed from room state");
     });
 
     test("members default to media off and snapshot carries flags", () => {

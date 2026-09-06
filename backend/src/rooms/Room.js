@@ -12,8 +12,17 @@ class Room {
             wallpaper: {
                 url: null
             },
-            chat: [],
-            title: ""
+            activity: [],
+            title: "",
+            timer: {
+                status: "idle",
+                durationMs: 0,
+                remainingMs: 0,
+                endsAt: null,
+                startedBy: null,
+                startedAt: null,
+                updatedAt: Date.now()
+            }
         };
     }
 
