@@ -5,6 +5,7 @@ const MAX_DISPLAY_NAME_LENGTH = 24;
 const MAX_WALLPAPER_URL_LENGTH = 2048;
 const MAX_CHAT_HISTORY = 50;
 const MAX_CHAT_TEXT_LENGTH = 500;
+const MAX_ROOM_TITLE_LENGTH = 60;
 const PLAYBACK_STATUSES = ["playing", "paused"];
 
 function coerceBoolean(value, field) {
@@ -61,6 +62,14 @@ class InvalidPayloadError extends Error {
         super(message);
         this.name = "InvalidPayloadError";
         this.code = "INVALID_PAYLOAD";
+    }
+}
+
+class NotHostError extends Error {
+    constructor(message = "Only the room host can set the title") {
+        super(message);
+        this.name = "NotHostError";
+        this.code = "NOT_HOST";
     }
 }
 
@@ -188,6 +197,19 @@ class RoomService {
         return { socketId, displayName: member.displayName, audioOn: member.audioOn, videoOn: member.videoOn };
     }
 
+    setTitle(roomId, socketId, { title }) {
+        const room = this._assertRoom(roomId);
+        const member = room.members.get(socketId);
+        if (!member) throw new NotInRoomError();
+        if (!member.isHost) throw new NotHostError();
+        if (typeof title !== "string" || title.trim().length === 0 || title.length > MAX_ROOM_TITLE_LENGTH) {
+            throw new InvalidPayloadError(`title must be a non-empty string of at most ${MAX_ROOM_TITLE_LENGTH} chars`);
+        }
+        const trimmed = title.trim();
+        room.state.title = trimmed;
+        return { title: trimmed, changedBy: socketId, updatedAt: Date.now() };
+    }
+
     resolveRoomBySocket(socketId) {
         const rooms = this.store.all();
         for (const room of rooms) {
@@ -206,5 +228,6 @@ module.exports.AlreadyInRoomError = AlreadyInRoomError;
 module.exports.NotInRoomError = NotInRoomError;
 module.exports.TargetNotInRoomError = TargetNotInRoomError;
 module.exports.InvalidPayloadError = InvalidPayloadError;
+module.exports.NotHostError = NotHostError;
 module.exports.MAX_ROOM_MEMBERS = MAX_ROOM_MEMBERS;
 module.exports.MAX_CHAT_HISTORY = MAX_CHAT_HISTORY;

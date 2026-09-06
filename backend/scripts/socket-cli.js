@@ -34,6 +34,7 @@ const SERVER_EVENTS = [
     "room:member_joined",
     "room:member_left",
     "room:error",
+    "room:title_state",
     "playback:state",
     "wallpaper:state",
     "chat:message",
@@ -141,6 +142,7 @@ function handleCommand(line) {
                     "  seek <seconds>       — playback:seek",
                     "  track <trackUrl>     — playback:set_track",
                     "  wall <url>           — wallpaper:set",
+                    "  title <text>         — room:set_title (host only)",
                     "  say <text>           — chat:send",
                     "  media <on|off>       — rtc:media { audio, video }",
                     "  offer <targetId> <sdp> — rtc:offer relay",
@@ -205,6 +207,14 @@ function handleCommand(line) {
                 break;
             }
             emit("wallpaper:set", { url: arg0 });
+            break;
+
+        case "title":
+            if (rest.length === 0) {
+                console.log("Usage: title <text>");
+                break;
+            }
+            emit("room:set_title", { title: rest.join(" ") });
             break;
 
         case "say":

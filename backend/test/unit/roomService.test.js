@@ -9,6 +9,7 @@ const {
     NotInRoomError,
     InvalidPayloadError,
     TargetNotInRoomError,
+    NotHostError,
     MAX_ROOM_MEMBERS,
     MAX_CHAT_HISTORY
 } = require("../../src/rooms/RoomService");
@@ -335,6 +336,48 @@ describe("RoomService", () => {
                 assert.ok(err instanceof TargetNotInRoomError);
                 assert.equal(err.code, "TARGET_NOT_IN_ROOM");
             }
+        });
+    });
+
+    describe("setTitle", () => {
+        test("host sets title -> state updates and snapshot carries it", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            const result = service.setTitle(roomId, socketId, { title: "Cozy Corner" });
+            assert.equal(result.title, "Cozy Corner");
+            assert.equal(typeof result.updatedAt, "number");
+            const pub = service.getState(roomId);
+            assert.equal(pub.state.title, "Cozy Corner");
+        });
+
+        test("missing room -> RoomNotFoundError", () => {
+            assert.throws(
+                () => service.setTitle("NOPE", socketId, { title: "x" }),
+                RoomNotFoundError
+            );
+        });
+
+        test("non-host -> NotHostError with code NOT_HOST", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            service.joinRoom(roomId, "joiner-1", "Bob");
+            try {
+                service.setTitle(roomId, "joiner-1", { title: "x" });
+                assert.fail("expected NotHostError");
+            } catch (err) {
+                assert.ok(err instanceof NotHostError);
+                assert.equal(err.code, "NOT_HOST");
+            }
+        });
+
+        test("missing, empty, non-string, too long -> InvalidPayloadError", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            assert.throws(() => service.setTitle(roomId, socketId, {}), InvalidPayloadError);
+            assert.throws(() => service.setTitle(roomId, socketId, { title: "" }), InvalidPayloadError);
+            assert.throws(() => service.setTitle(roomId, socketId, { title: "   " }), InvalidPayloadError);
+            assert.throws(() => service.setTitle(roomId, socketId, { title: 42 }), InvalidPayloadError);
+            assert.throws(
+                () => service.setTitle(roomId, socketId, { title: "a".repeat(61) }),
+                InvalidPayloadError
+            );
         });
     });
 

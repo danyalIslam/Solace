@@ -349,3 +349,39 @@ describe("WebRTC relay + media presence", () => {
         assert.equal(host.videoOn, false);
     });
 });
+
+describe("room title", () => {
+    test("host sets title -> room:title_state broadcast to guest with changedBy", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        const { client: guest } = await joinRoom(port, roomId, "Guest");
+
+        const titleP = waitForEvent(guest, "room:title_state");
+        host.emit("room:set_title", { title: "Cozy Corner" });
+        const st = await titleP;
+        assert.equal(st.title, "Cozy Corner");
+        assert.equal(st.changedBy, host.id);
+        assert.equal(typeof st.updatedAt, "number");
+    });
+
+    test("title visible in late joiner room:joined snapshot", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        host.emit("room:set_title", { title: "Lofi Night" });
+        await waitForEvent(host, "room:title_state");
+        const { joined } = await joinRoom(port, roomId, "Guest");
+        assert.equal(joined.state.title, "Lofi Night");
+    });
+
+    test("non-host set_title -> room:error NOT_HOST", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        const { client: guest } = await joinRoom(port, roomId, "Guest");
+
+        const errP = waitForEvent(guest, "room:error", (p) => p.code === "NOT_HOST");
+        guest.emit("room:set_title", { title: "sneaky" });
+        const err = await errP;
+        assert.equal(err.code, "NOT_HOST");
+        assert.equal(host.connected, true);
+    });
+});

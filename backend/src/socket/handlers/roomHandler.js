@@ -79,6 +79,24 @@ function createRoomHandler(io, roomService) {
             } catch (err) {
                 emitError(socket, err);
             }
+        },
+
+        handleSetTitle(socket, payload) {
+            try {
+                const room = roomService.resolveRoomBySocket(socket.id);
+                if (!room) {
+                    socket.emit(SERVER.ROOM_ERROR, {
+                        code: "NOT_IN_ROOM",
+                        message: "Not a member of this room"
+                    });
+                    return;
+                }
+                const titlePayload = payload && payload.title;
+                const result = roomService.setTitle(room.id, socket.id, { title: titlePayload });
+                io.to(room.id).emit(SERVER.ROOM_TITLE_STATE, result);
+            } catch (err) {
+                emitError(socket, err);
+            }
         }
     };
 }

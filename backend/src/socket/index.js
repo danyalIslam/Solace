@@ -29,6 +29,7 @@ function createSocketServer(httpServer) {
         socket.on(CLIENT.ROOM_JOIN, (payload) => roomHandler.handleJoin(socket, payload));
         socket.on(CLIENT.ROOM_LEAVE, () => roomHandler.handleLeave(socket));
         socket.on(CLIENT.ROOM_GET_STATE, () => roomHandler.handleGetState(socket));
+        socket.on(CLIENT.ROOM_SET_TITLE, (payload) => roomHandler.handleSetTitle(socket, payload));
         socket.on(CLIENT.PLAYBACK_PLAY, (payload) => playbackHandler.handlePlay(socket, payload));
         socket.on(CLIENT.PLAYBACK_PAUSE, () => playbackHandler.handlePause(socket));
         socket.on(CLIENT.PLAYBACK_SEEK, (payload) => playbackHandler.handleSeek(socket, payload));

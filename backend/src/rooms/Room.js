@@ -12,7 +12,8 @@ class Room {
             wallpaper: {
                 url: null
             },
-            chat: []
+            chat: [],
+            title: ""
         };
     }
 

@@ -16,6 +16,7 @@ describe("Room entity", () => {
         });
         assert.deepEqual(room.state.wallpaper, { url: null });
         assert.deepEqual(room.state.chat, []);
+        assert.equal(room.state.title, "");
     });
 
     test("addMember / removeMember", () => {
@@ -55,6 +56,7 @@ describe("Room entity", () => {
         assert.equal(m.isHost, true);
         assert.ok(!("joinedAt" in m), "joinedAt must not leak to public state");
         assert.deepEqual(pub.state, room.state);
+        assert.equal(pub.state.title, "");
     });
 
     test("members default to media off and snapshot carries flags", () => {
