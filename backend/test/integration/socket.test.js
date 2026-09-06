@@ -1,5 +1,6 @@
-const { test, afterEach } = require("node:test");
+const { test, afterEach, describe } = require("node:test");
 const assert = require("node:assert/strict");
+const { io: ioc } = require("socket.io-client");
 const {
     startTestServer,
     connectClient,
@@ -257,4 +258,86 @@ test("non-member chat:send -> room:error NOT_IN_ROOM", async () => {
     stranger.emit("chat:send", { text: "hi" });
     const err = await errPromise;
     assert.equal(err.code, "NOT_IN_ROOM");
+});
+
+describe("WebRTC relay + media presence", () => {
+    test("rtc:config arrives with STUN on connect", async () => {
+        const { port } = await boot();
+        const socket = ioc(`http://localhost:${port}`, { transports: ["websocket"] });
+        const cfgP = new Promise((resolve) => socket.once("rtc:config", resolve));
+        await new Promise((resolve, reject) => {
+            socket.once("connect", resolve);
+            socket.once("connect_error", reject);
+        });
+        track(socket);
+        const cfg = await cfgP;
+        assert.ok(cfg.iceServers.length >= 1);
+        assert.match(cfg.iceServers[0].urls[0], /^stun:/);
+    });
+
+    test("offer relays A -> B with from envelope", async () => {
+        const { port } = await boot();
+        const { client: A, roomId } = await createRoom(port, "Host");
+        const { client: B } = await joinRoom(port, roomId, "Bravo");
+        const offerP = waitForEvent(B, "rtc:offer");
+        A.emit("rtc:offer", { to: B.id, sdp: "v=0 fake-offer" });
+        const env = await offerP;
+        assert.equal(env.from, A.id);
+        assert.equal(env.sdp, "v=0 fake-offer");
+    });
+
+    test("answer relays B -> A", async () => {
+        const { port } = await boot();
+        const { client: A, roomId } = await createRoom(port, "Host");
+        const { client: B } = await joinRoom(port, roomId, "Bravo");
+        const answerP = waitForEvent(A, "rtc:answer");
+        B.emit("rtc:answer", { to: A.id, sdp: "v=0 fake-answer" });
+        const env = await answerP;
+        assert.equal(env.from, B.id);
+        assert.equal(env.sdp, "v=0 fake-answer");
+    });
+
+    test("ice relays candidate", async () => {
+        const { port } = await boot();
+        const { client: A, roomId } = await createRoom(port, "Host");
+        const { client: B } = await joinRoom(port, roomId, "Bravo");
+        const iceP = waitForEvent(B, "rtc:ice");
+        A.emit("rtc:ice", { to: B.id, candidate: "candidate:1 1 udp 2122260223 1.2.3.4 5000 typ host" });
+        const env = await iceP;
+        assert.equal(env.from, A.id);
+        assert.match(env.candidate, /^candidate:/);
+    });
+
+    test("relay to non-member target -> TARGET_NOT_IN_ROOM", async () => {
+        const { port } = await boot();
+        const { client: A, roomId } = await createRoom(port, "Host");
+        await joinRoom(port, roomId, "Bravo");
+        const errP = waitForEvent(A, "room:error", (p) => p.code === "TARGET_NOT_IN_ROOM");
+        A.emit("rtc:offer", { to: "ghost-socket", sdp: "v=0" });
+        const err = await errP;
+        assert.equal(err.code, "TARGET_NOT_IN_ROOM");
+    });
+
+    test("media broadcast reaches room incl. flags", async () => {
+        const { port } = await boot();
+        const { client: A, roomId } = await createRoom(port, "Host");
+        const { client: B } = await joinRoom(port, roomId, "Bravo");
+        const mediaP = waitForEvent(B, "rtc:media_state");
+        A.emit("rtc:media", { audio: true, video: true });
+        const st = await mediaP;
+        assert.equal(st.socketId, A.id);
+        assert.equal(st.audio, true);
+        assert.equal(st.video, true);
+    });
+
+    test("media flags visible in room:joined snapshot for late joiner", async () => {
+        const { port } = await boot();
+        const { client: A, roomId } = await createRoom(port, "Host");
+        A.emit("rtc:media", { audio: true, video: false });
+        await waitForEvent(A, "rtc:media_state");
+        const { joined } = await joinRoom(port, roomId, "Bravo");
+        const host = joined.members.find((m) => m.socketId === A.id);
+        assert.equal(host.audioOn, true);
+        assert.equal(host.videoOn, false);
+    });
 });
