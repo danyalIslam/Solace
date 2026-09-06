@@ -14,6 +14,8 @@ services:
       - TURN_PORT=${TURN_PORT:-3478}
       - TURN_USER=${TURN_USER:-solace}
       - TURN_PASSWORD=${TURN_PASSWORD:-changeme}
+    volumes:
+      - solace-uploads:/app/uploads
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
       interval: 30s
@@ -35,3 +37,6 @@ services:
     ports:
       - "3478:3478/udp"
       - "3478:3478/tcp"
+
+volumes:
+  solace-uploads:

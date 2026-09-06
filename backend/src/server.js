@@ -2,6 +2,9 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const { createSocketServer } = require("./socket");
+const MemoryRoomStore = require("./rooms/MemoryRoomStore");
+const RoomService = require("./rooms/RoomService");
+const { createUploadRouter } = require("./upload/uploadRouter");
 
 function createHttpServer() {
     const app = express();
@@ -16,8 +19,12 @@ function createHttpServer() {
         });
     });
 
+    const roomService = new RoomService(MemoryRoomStore);
     const server = http.createServer(app);
-    server.socketServer = createSocketServer(server);
+    const socketServer = createSocketServer(server, roomService);
+    server.socketServer = socketServer;
+    app.set("socketServer", socketServer.io);
+    app.use(createUploadRouter(roomService));
     return server;
 }
 

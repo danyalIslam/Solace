@@ -1,7 +1,11 @@
 const { io: ioc } = require("socket.io-client");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 const { createHttpServer } = require("../../src/server");
 
 async function startTestServer() {
+    process.env.UPLOADS_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "solace-test-uploads-"));
     const server = createHttpServer();
     await new Promise((resolve) => server.listen(0, resolve));
     const port = server.address().port;

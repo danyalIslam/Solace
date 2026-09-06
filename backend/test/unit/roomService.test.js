@@ -590,6 +590,17 @@ describe("RoomService", () => {
         });
     });
 
+    describe("getRoom", () => {
+        test("returns the room for an existing roomId", () => {
+            const { roomId, room } = service.createRoom("H", socketId);
+            assert.equal(service.getRoom(roomId), room);
+        });
+
+        test("missing room -> RoomNotFoundError", () => {
+            assert.throws(() => service.getRoom("NOPE"), RoomNotFoundError);
+        });
+    });
+
     describe("resolveRoomBySocket", () => {
         test("finds room containing socket", () => {
             const { room } = service.createRoom("H", socketId);

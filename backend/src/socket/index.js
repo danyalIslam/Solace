@@ -9,7 +9,7 @@ const createActivityHandler = require("./handlers/activityHandler");
 const createTimerHandler = require("./handlers/timerHandler");
 const { createRtcHandler, resolveIceServers } = require("./handlers/rtcHandler");
 
-function createSocketServer(httpServer) {
+function createSocketServer(httpServer, roomService = new RoomService(MemoryRoomStore)) {
     const io = new Server(httpServer, {
         cors: {
             origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
@@ -17,7 +17,6 @@ function createSocketServer(httpServer) {
         }
     });
 
-    const roomService = new RoomService(MemoryRoomStore);
     const roomHandler = createRoomHandler(io, roomService);
     const playbackHandler = createPlaybackHandler(io, roomService);
     const wallpaperHandler = createWallpaperHandler(io, roomService);

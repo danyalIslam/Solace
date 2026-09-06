@@ -12,6 +12,8 @@ COPY src/ ./src/
 
 ENV NODE_ENV=production PORT=8080
 
+RUN mkdir -p /app/uploads
+
 EXPOSE 8080
 
 CMD ["node", "src/server.js"]

@@ -132,6 +132,10 @@ class RoomService {
         return room;
     }
 
+    getRoom(roomId) {
+        return this._assertRoom(roomId);
+    }
+
     getState(roomId) {
         const room = this._assertRoom(roomId);
         return room.toPublicState();
