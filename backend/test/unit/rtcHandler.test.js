@@ -8,6 +8,22 @@ test("stun only when TURN env absent", () => {
     assert.match(ice[0].urls[0], /^stun:/);
 });
 
+test("partial TURN config: host only -> stun only", () => {
+    const ice = resolveIceServers({ TURN_HOST: "x" });
+    assert.equal(ice.length, 1);
+    assert.match(ice[0].urls[0], /^stun:/);
+});
+
+test("partial TURN config: no password -> stun only", () => {
+    const ice = resolveIceServers({
+        TURN_HOST: "turn.example.com",
+        TURN_PORT: "3478",
+        TURN_USER: "solace"
+    });
+    assert.equal(ice.length, 1);
+    assert.match(ice[0].urls[0], /^stun:/);
+});
+
 test("stun + turn when TURN env present", () => {
     const ice = resolveIceServers({
         TURN_HOST: "turn.example.com",

@@ -1,5 +1,5 @@
 const { SERVER, CLIENT } = require("../events");
-const { TargetNotInRoomError, NotInRoomError } = require("../../rooms/RoomService");
+const { TargetNotInRoomError, NotInRoomError, InvalidPayloadError } = require("../../rooms/RoomService");
 
 const DEFAULT_STUN_URL = "stun:stun.l.google.com:19302";
 
@@ -34,7 +34,7 @@ function createRtcHandler(io, roomService) {
         const to = payload && payload.to;
         const data = payload && payload[field];
         if (typeof to !== "string" || typeof data !== "string" || data.length === 0) {
-            emitError(socket, { code: "INVALID_PAYLOAD", message: `${eventName} requires { to: string, ${field}: string }` });
+            emitError(socket, new InvalidPayloadError(`${eventName} requires { to: string, ${field}: string }`));
             return;
         }
         if (!fromRoom.members.has(to)) {
