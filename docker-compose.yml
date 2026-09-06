@@ -10,9 +10,28 @@ services:
       - PORT=8080
       - NODE_ENV=production
       - CLIENT_ORIGIN=${CLIENT_ORIGIN:-http://localhost:3000}
+      - TURN_HOST=${TURN_HOST:-localhost}
+      - TURN_PORT=${TURN_PORT:-3478}
+      - TURN_USER=${TURN_USER:-solace}
+      - TURN_PASSWORD=${TURN_PASSWORD:-changeme}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
+  coturn:
+    image: coturn/coturn:4.6
+    container_name: solace-turn
+    restart: unless-stopped
+    command: >
+      -n --log-file=stdout
+      --lt-cred-mech
+      --realm=${TURN_REALM:-solace.local}
+      --user=${TURN_USER:-solace}:${TURN_PASSWORD:-changeme}
+      --fingerprint
+      --no-tls
+      --no-dtls
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
