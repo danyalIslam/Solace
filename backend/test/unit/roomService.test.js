@@ -416,6 +416,89 @@ describe("RoomService", () => {
         });
     });
 
+    describe("timer", () => {
+        const Room = require("../../src/rooms/Room");
+
+        function makeTimerService() {
+            let now = 1_000_000;
+            let pending = null; // { fn, ms } — the armed scheduler callback
+            const clock = { now: () => now, advance: (ms) => { now += ms; } };
+            const schedule = (fn, ms) => { pending = { fn, ms }; return 1; };
+            const cancel = () => { pending = null; };
+            const s = new RoomService(undefined, { now: clock.now, schedule, cancel });
+            const rooms = new Map();
+            s.store = {
+                all: () => Array.from(rooms.values()),
+                get: (id) => rooms.get(id) || null,
+                create: () => { const r = new Room("R" + (rooms.size + 1)); rooms.set(r.id, r); return r; }
+            };
+            return { s, clock, sp: () => pending, fire: () => { if (pending) { const p = pending; pending = null; p.fn(); } } };
+        }
+
+        test("transition start -> running with computed endsAt", () => {
+            const { s, clock, sp } = makeTimerService();
+            const { roomId } = s.createRoom("H", socketId);
+            const st = s.startTimer(roomId, socketId, 25);
+            assert.equal(st.timer.status, "running");
+            assert.equal(st.timer.durationMs, 25 * 60_000);
+            assert.equal(st.timer.remainingMs, 25 * 60_000);
+            assert.equal(st.timer.endsAt, clock.now() + 25 * 60_000);
+            assert.equal(st.timer.startedBy, socketId);
+            assert.ok(sp(), "scheduler must be armed");
+        });
+
+        test("pause freezes remaining and transitions to paused", () => {
+            const { s, clock } = makeTimerService();
+            const { roomId } = s.createRoom("H", socketId);
+            s.startTimer(roomId, socketId, 25);
+            clock.advance(10_000);
+            const st = s.pauseTimer(roomId, socketId);
+            assert.equal(st.timer.status, "paused");
+            assert.equal(st.timer.remainingMs, 25 * 60_000 - 10_000);
+            assert.equal(st.timer.endsAt, null);
+        });
+
+        test("reset clears timer to idle", () => {
+            const { s } = makeTimerService();
+            const { roomId } = s.createRoom("H", socketId);
+            s.startTimer(roomId, socketId, 25);
+            const st = s.resetTimer(roomId, socketId);
+            assert.equal(st.timer.status, "idle");
+            assert.equal(st.timer.endsAt, null);
+            assert.equal(st.timer.durationMs, 0);
+        });
+
+        test("minutes out of range -> InvalidPayloadError", () => {
+            const { s } = makeTimerService();
+            const { roomId } = s.createRoom("H", socketId);
+            assert.throws(() => s.startTimer(roomId, socketId, 0), InvalidPayloadError);
+            assert.throws(() => s.startTimer(roomId, socketId, 181), InvalidPayloadError);
+            assert.throws(() => s.startTimer(roomId, socketId, "25"), InvalidPayloadError);
+        });
+
+        test("non-member timer control -> NotInRoomError", () => {
+            const { s } = makeTimerService();
+            const { roomId } = s.createRoom("H", socketId);
+            assert.throws(() => s.startTimer(roomId, "stranger", 25), NotInRoomError);
+            assert.throws(() => s.pauseTimer(roomId, "stranger"), NotInRoomError);
+        });
+
+        test("completing the timer via injected scheduler produces completion result", () => {
+            const { s, fire } = makeTimerService();
+            const { roomId } = s.createRoom("H", socketId);
+            s.startTimer(roomId, socketId, 1);
+            let called = false;
+            let result = null;
+            s.startTimer(roomId, socketId, 1, (r) => { called = true; result = r; });
+            fire();
+            assert.equal(called, true, "onComplete must fire on schedule");
+            assert.equal(result.status, "idle");
+            assert.equal(result.timer.status, "idle");
+            assert.equal(result.timer.durationMs, 1 * 60_000);
+            assert.equal(result.timer.completed, true);
+        });
+    });
+
     describe("resolveRoomBySocket", () => {
         test("finds room containing socket", () => {
             const { room } = service.createRoom("H", socketId);

@@ -6,6 +6,8 @@ const MAX_WALLPAPER_URL_LENGTH = 2048;
 const MAX_ACTIVITY_HISTORY = 50;
 const MAX_CHAT_TEXT_LENGTH = 500;
 const MAX_ROOM_TITLE_LENGTH = 60;
+const MIN_TIMER_MINUTES = 1;
+const MAX_TIMER_MINUTES = 180;
 const PLAYBACK_STATUSES = ["playing", "paused"];
 
 function coerceBoolean(value, field) {
@@ -74,8 +76,11 @@ class NotHostError extends Error {
 }
 
 class RoomService {
-    constructor(store) {
+    constructor(store, timers) {
         this.store = store;
+        this._now = (timers && timers.now) || (() => Date.now());
+        this._schedule = (timers && timers.schedule) || ((fn, ms) => setTimeout(fn, ms));
+        this._cancel = (timers && timers.cancel) || ((id) => clearTimeout(id));
     }
 
     _assertRoom(roomId) {
@@ -216,6 +221,62 @@ class RoomService {
         const trimmed = title.trim();
         room.state.title = trimmed;
         return { title: trimmed, changedBy: socketId, updatedAt: Date.now() };
+    }
+
+    startTimer(roomId, socketId, minutes, onComplete) {
+        const room = this._assertRoom(roomId);
+        this._assertMember(room, socketId);
+        if (typeof minutes !== "number" || !Number.isFinite(minutes) || minutes < MIN_TIMER_MINUTES || minutes > MAX_TIMER_MINUTES) {
+            throw new InvalidPayloadError(`minutes must be a number between ${MIN_TIMER_MINUTES} and ${MAX_TIMER_MINUTES}`);
+        }
+        if (room.timerHandle) this._cancel(room.timerHandle);
+        const durationMs = minutes * 60_000;
+        const startedAt = this._now();
+        Object.assign(room.state.timer, {
+            status: "running",
+            durationMs,
+            remainingMs: durationMs,
+            endsAt: startedAt + durationMs,
+            startedBy: socketId,
+            startedAt,
+            updatedAt: startedAt
+        });
+        const handle = this._schedule(() => {
+            room.state.timer.endsAt = null;
+            room.state.timer.startedAt = null;
+            room.state.timer.startedBy = null;
+            if (typeof onComplete === "function") {
+                onComplete({
+                    status: "idle",
+                    timer: { ...room.state.timer, status: "idle", completed: true }
+                });
+            }
+        }, durationMs);
+        room.timerHandle = handle;
+        return { room, timer: { ...room.state.timer } };
+    }
+
+    pauseTimer(roomId, socketId) {
+        const room = this._assertRoom(roomId);
+        this._assertMember(room, socketId);
+        const t = room.state.timer;
+        if (t.status !== "running") throw new InvalidPayloadError("Timer is not running");
+        const now = this._now();
+        if (room.timerHandle) { this._cancel(room.timerHandle); room.timerHandle = null; }
+        const remainingMs = t.endsAt ? Math.max(0, t.endsAt - now) : t.remainingMs;
+        Object.assign(t, { status: "paused", remainingMs, endsAt: null, updatedAt: now });
+        return { room, timer: { ...t } };
+    }
+
+    resetTimer(roomId, socketId) {
+        const room = this._assertRoom(roomId);
+        this._assertMember(room, socketId);
+        if (room.timerHandle) { this._cancel(room.timerHandle); room.timerHandle = null; }
+        Object.assign(room.state.timer, {
+            status: "idle", durationMs: 0, remainingMs: 0, endsAt: null,
+            startedBy: null, startedAt: null, updatedAt: this._now()
+        });
+        return { room, timer: { ...room.state.timer } };
     }
 
     resolveRoomBySocket(socketId) {
