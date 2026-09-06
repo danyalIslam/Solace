@@ -376,6 +376,38 @@ describe("activity", () => {
     });
 });
 
+describe("timer", () => {
+    test("timer:start -> timer:state broadcast with status running", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        const { client: guest } = await joinRoom(port, roomId, "Guest");
+
+        const stP = waitForEvent(guest, "timer:state", (p) => p.status === "running");
+        host.emit("timer:start", { minutes: 25 });
+        const st = await stP;
+        assert.equal(st.durationMs, 25 * 60_000);
+        assert.equal(typeof st.endsAt, "number");
+    });
+
+    test("timer:start invalid minutes -> room:error INVALID_PAYLOAD", async () => {
+        const { port } = await boot();
+        const { client: host } = await createRoom(port, "Host");
+        const errP = waitForEvent(host, "room:error", (p) => p.code === "INVALID_PAYLOAD");
+        host.emit("timer:start", { minutes: 999 });
+        const err = await errP;
+        assert.equal(err.code, "INVALID_PAYLOAD");
+    });
+
+    test("timer:start from a socket not in any room -> room:error NOT_IN_ROOM", async () => {
+        const { port } = await boot();
+        const standalone = track(await connectClient(port));
+        const errP = waitForEvent(standalone, "room:error", (p) => p.code === "NOT_IN_ROOM");
+        standalone.emit("timer:start", { minutes: 5 });
+        const err = await errP;
+        assert.equal(err.code, "NOT_IN_ROOM");
+    });
+});
+
 describe("room title", () => {
     test("host sets title -> room:title_state broadcast to guest with changedBy", async () => {
         const { port } = await boot();

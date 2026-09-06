@@ -6,6 +6,7 @@ const createRoomHandler = require("./handlers/roomHandler");
 const createPlaybackHandler = require("./handlers/playbackHandler");
 const createWallpaperHandler = require("./handlers/wallpaperHandler");
 const createActivityHandler = require("./handlers/activityHandler");
+const createTimerHandler = require("./handlers/timerHandler");
 const { createRtcHandler, resolveIceServers } = require("./handlers/rtcHandler");
 
 function createSocketServer(httpServer) {
@@ -22,6 +23,7 @@ function createSocketServer(httpServer) {
     const wallpaperHandler = createWallpaperHandler(io, roomService);
     const rtcHandler = createRtcHandler(io, roomService);
     const activityHandler = createActivityHandler(io, roomService);
+    const timerHandler = createTimerHandler(io, roomService);
 
     io.on("connection", (socket) => {
         socket.emit(SERVER.RTC_CONFIG, { iceServers: resolveIceServers(process.env) });
@@ -40,6 +42,9 @@ function createSocketServer(httpServer) {
         socket.on(CLIENT.RTC_ANSWER, (payload) => rtcHandler.handleAnswer(socket, payload));
         socket.on(CLIENT.RTC_ICE, (payload) => rtcHandler.handleIce(socket, payload));
         socket.on(CLIENT.ACTIVITY_SEND, (payload) => activityHandler.handleSend(socket, payload));
+        socket.on(CLIENT.TIMER_START, (payload) => timerHandler.handleStart(socket, payload));
+        socket.on(CLIENT.TIMER_PAUSE, () => timerHandler.handlePause(socket));
+        socket.on(CLIENT.TIMER_RESET, () => timerHandler.handleReset(socket));
 
         socket.on("disconnect", () => {
             const room = roomService.resolveRoomBySocket(socket.id);
