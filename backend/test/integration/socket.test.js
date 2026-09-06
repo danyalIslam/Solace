@@ -507,3 +507,27 @@ describe("activity entries from actions", () => {
         assert.equal(entry.detail, "cleared track");
     });
 });
+
+describe("wallpaper kind + upload library wire", () => {
+    test("wallpaper:set with kind video broadcasts kind to both members", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        const { client: guest } = await joinRoom(port, roomId, "Guest");
+        const hostP = waitForEvent(host, "wallpaper:state", (p) => p.url === "http://smoke/live.webm");
+        const guestP = waitForEvent(guest, "wallpaper:state", (p) => p.url === "http://smoke/live.webm");
+        host.emit("wallpaper:set", { url: "http://smoke/live.webm", kind: "video" });
+        const [h, g] = [await hostP, await guestP];
+        assert.equal(h.kind, "video");
+        assert.equal(g.kind, "video");
+        assert.equal(typeof h.updatedAt, "number");
+    });
+
+    test("activity entry detail is video-aware", async () => {
+        const { port } = await boot();
+        const { client: host } = await createRoom(port, "Host");
+        const actP = waitForEvent(host, "room:activity", (p) => p.entry && p.entry.type === "wallpaper");
+        host.emit("wallpaper:set", { url: "http://smoke/live.webm", kind: "video" });
+        const act = await actP;
+        assert.equal(act.entry.detail, "set video wallpaper http://smoke/live.webm");
+    });
+});
