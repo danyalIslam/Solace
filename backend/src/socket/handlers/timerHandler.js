@@ -26,7 +26,7 @@ function createTimerHandler(io, roomService) {
             try {
                 const minutes = payload && payload.minutes;
                 const member = room.members.get(socket.id);
-                const actor = { socketId: socket.id, displayName: member.displayName };
+                const actor = { socketId: socket.id, displayName: member ? member.displayName : "unknown" };
                 const { room: updatedRoom, timer } = roomService.startTimer(room.id, socket.id, minutes, (completion) => {
                     io.to(updatedRoom.id).emit(SERVER.TIMER_COMPLETE, {
                         completedBy: actor.socketId,
@@ -46,7 +46,7 @@ function createTimerHandler(io, roomService) {
             if (!room) return;
             try {
                 const member = room.members.get(socket.id);
-                const actor = { socketId: socket.id, displayName: member.displayName };
+                const actor = { socketId: socket.id, displayName: member ? member.displayName : "unknown" };
                 const { room: updatedRoom, timer } = roomService.pauseTimer(room.id, socket.id);
                 io.to(updatedRoom.id).emit(SERVER.TIMER_STATE, timer);
                 logTimer(updatedRoom, actor, "paused timer");
@@ -59,7 +59,7 @@ function createTimerHandler(io, roomService) {
             if (!room) return;
             try {
                 const member = room.members.get(socket.id);
-                const actor = { socketId: socket.id, displayName: member.displayName };
+                const actor = { socketId: socket.id, displayName: member ? member.displayName : "unknown" };
                 const { room: updatedRoom, timer } = roomService.resetTimer(room.id, socket.id);
                 io.to(updatedRoom.id).emit(SERVER.TIMER_STATE, timer);
                 logTimer(updatedRoom, actor, "reset timer");

@@ -493,6 +493,35 @@ describe("RoomService", () => {
             assert.equal(result.timer.durationMs, 1 * 60_000);
             assert.equal(result.timer.completed, true);
         });
+
+        test("start while running cancels prior timer and re-arms", () => {
+            const { s, clock, sp, fire } = makeTimerService();
+            const { roomId } = s.createRoom("H", socketId);
+            let firstFired = false;
+            let secondFired = false;
+            s.startTimer(roomId, socketId, 25, () => { firstFired = true; });
+            clock.advance(5_000);
+            s.startTimer(roomId, socketId, 10, () => { secondFired = true; });
+            assert.equal(sp().ms, 10 * 60_000, "re-armed with new duration");
+            fire();
+            assert.equal(firstFired, false, "cancelled timer must not fire");
+            assert.equal(secondFired, true, "new timer must fire");
+            assert.equal(s.getState(roomId).state.timer.durationMs, 10 * 60_000);
+        });
+
+        test("pause then start resumes a fresh running timer", () => {
+            const { s, clock } = makeTimerService();
+            const { roomId } = s.createRoom("H", socketId);
+            s.startTimer(roomId, socketId, 25);
+            clock.advance(10_000);
+            s.pauseTimer(roomId, socketId);        // remainingMs 24m50s
+            s.startTimer(roomId, socketId, 5);     // restart fresh 5min
+            const t = s.getState(roomId).state.timer;
+            assert.equal(t.status, "running");
+            assert.equal(t.durationMs, 5 * 60_000);
+            assert.equal(t.remainingMs, 5 * 60_000);
+            assert.equal(t.endsAt, clock.now() + 5 * 60_000);
+        });
     });
 
     describe("resolveRoomBySocket", () => {

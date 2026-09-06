@@ -94,7 +94,7 @@ function createPlaybackHandler(io, roomService) {
                     track
                 });
                 broadcast(updatedRoom, change, socket.id);
-                appendActivity(updatedRoom, socket, `set track ${change.track.url}`);
+                appendActivity(updatedRoom, socket, change.track ? `set track ${change.track.url}` : "cleared track");
             } catch (err) {
                 emitError(socket, err);
             }

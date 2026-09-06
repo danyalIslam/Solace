@@ -495,4 +495,15 @@ describe("activity entries from actions", () => {
         const entry = joined.state.activity.find((e) => e.type === "playback");
         assert.ok(entry, "playback entry present");
     });
+
+    test("set_track with null track does not crash (produces playback entry)", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        host.emit("playback:set_track", { track: null });
+        await waitForEvent(host, "playback:state");
+        const { joined } = await joinRoom(port, roomId, "Obs");
+        const entry = joined.state.activity.find((e) => e.type === "playback");
+        assert.ok(entry, "playback entry present");
+        assert.equal(entry.detail, "cleared track");
+    });
 });
