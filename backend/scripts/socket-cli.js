@@ -15,6 +15,8 @@
 //     docker exec -it <backend-container> node scripts/socket-cli.js
 
 const readline = require("readline");
+const fs = require("node:fs");
+const path = require("node:path");
 
 let io;
 try {
@@ -37,6 +39,7 @@ const SERVER_EVENTS = [
     "room:title_state",
     "playback:state",
     "wallpaper:state",
+    "wallpaper:uploads",
     "room:activity",
     "timer:state",
     "timer:complete",
@@ -57,6 +60,7 @@ let connected = false;
 let cmdQueue = [];
 let quitting = false;
 let exitTimer = null;
+let currentRoomId = null;
 
 const EXIT_SETTLE_MS = 600;
 
@@ -97,6 +101,14 @@ SERVER_EVENTS.forEach((event) => {
     });
 });
 
+socket.on("room:created", (data) => {
+    if (data && data.roomId) currentRoomId = data.roomId;
+});
+
+socket.on("room:joined", (data) => {
+    if (data && data.roomId) currentRoomId = data.roomId;
+});
+
 socket.on("connect", () => {
     connected = true;
     console.log(`Connected as ${displayName} :: ${socket.id}`);
@@ -117,6 +129,36 @@ socket.on("connect_error", (err) => {
 function emit(event, payload = {}) {
     console.log(`→ ${event} ${JSON.stringify(payload)}`);
     socket.emit(event, payload);
+}
+
+function uploadFile(filePath) {
+    if (!currentRoomId) {
+        console.log("upload requires an active room — create or join one first.");
+        safePrompt();
+        return;
+    }
+    let buf;
+    try {
+        buf = fs.readFileSync(filePath);
+    } catch (err) {
+        console.log(`upload failed: cannot read '${filePath}': ${err.message}`);
+        return;
+    }
+    const form = new FormData();
+    form.append("roomId", currentRoomId);
+    form.append("file", new Blob([buf]), path.basename(filePath));
+    fetch(url + "/uploads", { method: "POST", body: form })
+        .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 201) {
+                const absUrl = url + data.url;
+                console.log(`uploaded ${absUrl} (${data.kind}, ${data.size} bytes)`);
+                console.log(`now: wall ${absUrl} [image|video] to set as wallpaper`);
+            } else {
+                console.log(`upload failed: ${res.status} ${data.error || "UNKNOWN"}`);
+            }
+        })
+        .catch((err) => console.log(`upload failed: ${err.message}`));
 }
 
 function handleCommand(line) {
@@ -143,7 +185,8 @@ function handleCommand(line) {
                     "  pause                — playback:pause",
                     "  seek <seconds>       — playback:seek",
                     "  track <trackUrl>     — playback:set_track",
-                    "  wall <url>           — wallpaper:set",
+                    "  wall <url> [image|video] — wallpaper:set",
+                    "  upload <path>            — upload file to room",
                     "  title <text>         — room:set_title (host only)",
                     "  say <text>           — activity:send (chat)",
                     "  media <on|off>       — rtc:media { audio, video }",
@@ -206,13 +249,28 @@ function handleCommand(line) {
             emit("playback:set_track", { track: { url: arg0 } });
             break;
 
-        case "wall":
+        case "wall": {
             if (!arg0) {
-                console.log("Usage: wall <url>");
+                console.log("Usage: wall <url> [image|video]");
                 break;
             }
-            emit("wallpaper:set", { url: arg0 });
+            const kind = rest[1];
+            if (kind && kind !== "image" && kind !== "video") {
+                console.log("Usage: wall <url> [image|video]");
+                break;
+            }
+            emit("wallpaper:set", { url: arg0, kind: kind || "image" });
             break;
+        }
+
+        case "upload": {
+            if (!arg0) {
+                console.log("Usage: upload <path>");
+                break;
+            }
+            uploadFile(arg0);
+            break;
+        }
 
         case "title":
             if (rest.length === 0) {
