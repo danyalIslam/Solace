@@ -199,63 +199,65 @@ test("room:get_state -> full snapshot", async () => {
     assert.equal(snap.roomId, roomId);
     assert.equal(snap.members.length, 2);
     assert.equal(snap.state.playback.status, "paused");
-    assert.deepEqual(snap.state.chat, []);
+    assert.ok(Array.isArray(snap.state.activity));
+    assert.ok(snap.state.activity.length >= 2, "activity has system entries from create + join");
 });
 
-test("chat:send from member B -> A receives chat:message with sender and text", async () => {
+test("activity:send from member B -> A receives room:activity with chat entry and text", async () => {
     const { port } = await boot();
     const { client: host, roomId } = await createRoom(port, "Host");
     const { client: guest } = await joinRoom(port, roomId, "Bob");
 
-    const msgPromise = waitForEvent(host, "chat:message", (p) => p.senderId === guest.id && p.text === "hey bob");
-    guest.emit("chat:send", { text: "hey bob" });
+    const msgPromise = waitForEvent(host, "room:activity", (p) => p.entry && p.entry.type === "chat" && p.entry.detail === "hey bob");
+    guest.emit("activity:send", { text: "hey bob" });
     const msg = await msgPromise;
-    assert.equal(msg.senderId, guest.id);
-    assert.equal(msg.displayName, "Bob");
-    assert.equal(msg.text, "hey bob");
-    assert.equal(typeof msg.id, "string");
-    assert.equal(typeof msg.sentAt, "number");
+    assert.equal(msg.entry.actor.socketId, guest.id);
+    assert.equal(msg.entry.actor.displayName, "Bob");
+    assert.equal(msg.entry.detail, "hey bob");
+    assert.equal(typeof msg.entry.id, "string");
+    assert.equal(typeof msg.entry.at, "number");
 });
 
-test("chat:send -> sender B also receives own chat:message", async () => {
+test("activity:send -> sender B also receives own room:activity", async () => {
     const { port } = await boot();
     const { client: host, roomId } = await createRoom(port, "Host");
     const { client: guest } = await joinRoom(port, roomId, "Bob");
 
-    const selfPromise = waitForEvent(guest, "chat:message", (p) => p.text === "self");
-    guest.emit("chat:send", { text: "self" });
+    const selfPromise = waitForEvent(guest, "room:activity", (p) => p.entry && p.entry.type === "chat" && p.entry.detail === "self");
+    guest.emit("activity:send", { text: "self" });
     const msg = await selfPromise;
-    assert.equal(msg.senderId, guest.id);
-    assert.equal(msg.text, "self");
+    assert.equal(msg.entry.actor.socketId, guest.id);
+    assert.equal(msg.entry.detail, "self");
 });
 
-test("new joiner after chat -> room:joined state.chat contains earlier message", async () => {
+test("new joiner after chat -> room:joined state.activity contains earlier chat entry", async () => {
     const { port } = await boot();
     const { roomId } = await createRoom(port, "Host");
     const { client: guest } = await joinRoom(port, roomId, "Bob");
-    guest.emit("chat:send", { text: "before join" });
-    await waitForEvent(guest, "chat:message", (p) => p.text === "before join");
+    guest.emit("activity:send", { text: "before join" });
+    await waitForEvent(guest, "room:activity", (p) => p.entry && p.entry.type === "chat" && p.entry.detail === "before join");
 
     const { joined } = await joinRoom(port, roomId, "Carol");
-    const chat = joined.state.chat;
-    assert.ok(chat.length >= 1);
-    assert.equal(chat[0].text, "before join");
+    const act = joined.state.activity;
+    const chatEntry = act.find((e) => e.type === "chat");
+    assert.ok(chatEntry, "chat entry present in activity");
+    assert.equal(chatEntry.detail, "before join");
 });
 
-test("chat:send invalid empty text -> room:error INVALID_PAYLOAD", async () => {
+test("activity:send invalid empty text -> room:error INVALID_PAYLOAD", async () => {
     const { port } = await boot();
     const { client: host } = await createRoom(port, "Host");
     const errPromise = waitForEvent(host, "room:error", (p) => p.code === "INVALID_PAYLOAD");
-    host.emit("chat:send", { text: "   " });
+    host.emit("activity:send", { text: "   " });
     const err = await errPromise;
     assert.equal(err.code, "INVALID_PAYLOAD");
 });
 
-test("non-member chat:send -> room:error NOT_IN_ROOM", async () => {
+test("non-member activity:send -> room:error NOT_IN_ROOM", async () => {
     const { port } = await boot();
     const stranger = track(await connectClient(port));
     const errPromise = waitForEvent(stranger, "room:error", (p) => p.code === "NOT_IN_ROOM");
-    stranger.emit("chat:send", { text: "hi" });
+    stranger.emit("activity:send", { text: "hi" });
     const err = await errPromise;
     assert.equal(err.code, "NOT_IN_ROOM");
 });

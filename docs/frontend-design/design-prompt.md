@@ -20,6 +20,14 @@ Each "Paper / Gen-AI visual prompt (labeled PAPER)" block below doubles as the b
 
 **One-liner:** Solace is an ambient lofi co-listening room — an anonymous, peer-synced space on the web where a few friends share the same quiet evening, the same warm glow, the same track, together.
 
+**Core state:** `state.activity` (capped append-only log, last 50 entries), `state.playback`, `state.wallpaper`, `state.title`, `state.timer`.
+
+**Socket events:**
+- **Client → Server:** `activity:send { text }`, `timer:start { minutes }`, `timer:pause`, `timer:reset`, `playback:play|pause|seek|set_track`, `wallpaper:set`, `room:set_title`, `room:create|join|leave|get_state`, `rtc:*`.
+- **Server → Client:** `room:activity { entry }` (append-only broadcast), `timer:state { status, durationMs, endsAt, remainingMs }`, `timer:complete`, `playback:state`, `wallpaper:state`, `room:title_state`, `room:created|joined|member_joined|member_left|error`.
+
+**Activity entry shape:** `{ id, type, actor: { socketId, displayName }, detail, at }` — type in `chat|playback|wallpaper|title|media|timer|system`.
+
 **Mood keywords:** calm-cozy-lofi-evening, warm-dusk, vinyl-warmth, soft-glow, breathing-space.
 
 **Five design principles:**
@@ -103,16 +111,17 @@ Model all tokens as **CSS custom properties** on the `:root`, so they sync strai
 **Buttons**
 - `PrimaryButton` — `bg/amber`, `text/depth/0`, rounded `12px`, `24px` tall. States: default / hover (brightened, slight glow) / pressed (dimmed) / focus-visible (amber outline ring) / loading (throbber) / disabled (muted 35%).
 - `GhostButton` — transparent, bone text, hairline `rgba(bone,0.18)` border on hover. States: default / hover (glow tint) / active / disabled.
-- `IconButton` — circular, glass. Used for media toggles / player / chat / close. States: default / hover (glow) / active (amber or filled) / disabled / `aria-pressed` visual for mute.
+- `IconButton` — circular, glass. Used for player controls / picker triggers / close. States: default / hover (glow) / active (amber or filled) / disabled / `aria-pressed` visual for mute.
 
 **Code input**
 - `RoomCodeInput` — single visual field, 6 slots for `S8DK2F`, mono, centered, large. States: idle (hairline, `--scrim-panel` backing) / focused (amber underline/glow) / filled (all slots, warm bone) / error (`--status-error` ring + shiver) / disabled. Paste accepted in one shot (fits 6 slots).
 
-**Member tile w/ media badges**
-- `MemberTile` — glass pill/card with name + muted avatar. Sub-states: host marker (tiny crown/star badge, amber), audio-on (soft green dot), video-on (camera chip), audio-off (mic-slash, `--status-error`/muted), you (self ring, subtle), speaking (glow pulse accent). Variants: compact (name row) / expanded.
+**Member row (hero presence)**
+- `MemberRow` — hero presence entry: small avatar circle (34) + name. Vertical stack top-right. Rest state: ~35% opacity grey so media shows through. Speaking: amber ring + glow + full-bright name + tiny green speaking dot. Muted: dimmed name, rose dot in info card. Variants: idle-grey / speaking-amber / muted. (Rich `MemberTile` pill w/ mic-video badges remains the **chat panel** member list style.)
 
-**Player controls**
-- `PlayerBar` — artwork thumb, track meta, control cluster. States per control: play/pause (glow-breathing when playing), seek slider (thumb: amber; trackfill: gradient amber→rose; hovered seek thumb grows), track prev/next (enabled/disabled), volume (optional).
+**Player controls (bottom-left, hover-expand)**
+- `PlayerMiniPill` — compact pill (glass, radius 999): prev / amber play / next + truncated track name. Hover expands into `TrackCard`.
+- `TrackCard` — artwork thumb (44, rounded), track title + artist, seek slider, mono elapsed/duration times.
 - `SeekSlider` — states: idle / hovered (rail brightens) / dragging / at-end.
 
 **Track row**
@@ -178,37 +187,29 @@ Model all tokens as **CSS custom properties** on the `:root`, so they sync strai
 
 ### c. Room — THE HERO SCREEN
 
-**Purpose:** The whole product. Full-bleed shared wallpaper, room code chip, member row (mic/video + host marker), lofi player bar (artwork / play-pause / seek / track change), collapsible chat, picker triggers, media toggles. Everything synced across peers.
+**Purpose:** The whole product. Fullscreen media background (user-uploaded **image or silent looping video**) is the star; everything else waits for the cursor. A room title is always visible. People, song controls, and room details only appear while the mouse moves and expand on hover; they idle-hide (~2 s) so the media stays clean.
 
 **Paper / Gen-AI visual prompt (labeled PAPER):**
 
-> A wide fictional ambient UI screen of an anonymous co-listening room on the web, rendered like a calm lofi evening photograph. A full-bleed warm dusk wallpaper — softly blurred violet, amber, and rose gradients like a sunset — dimmed under a charcoal scrim, film-grain throughout. In the top-left, a small translucent dark glass chip shows a warm mono room code "S8DK2F" with a tiny copy icon, glowing faint amber at the edge. Low along the top, a horizontal row of three or four small translucent glass member pills, each with a muted tiny avatar, a warm off-white name; one pill shows a tiny amber host marker, one has a soft green presence dot, one shows a tiny muted-mic glyph, the near-edge pill marked "you" with a soft amber self-ring. Near the bottom, a horizontal glass player bar floats over the wallpaper: on the left a small rounded album-art square of abstract dusk art; next to it the track name and artist in warm off-white and muted text; in the center a warm amber play/pause button; a slender seek line glowing amber fading to rose with a small thumb; small prev/next glyphs; and a tiny mono elapsed-duration readout. In the bottom-right corner, a small glass chat icon with a faint unread dot, and at the bottom-center two small circular glass media toggles for mic and camera. The whole scene is serene, cozy, breathing, glassmorphic, gently glowing from below, warm amber and violet, no neon, no harsh game UI, no corporate dashboards. Rendered as a relaxed lofi-ambiance product hero, dusk-warm, deep background.
+> A wide cinematic lofi room screen where the entire 1440×900 canvas is one full-bleed shared wallpaper — a warm dusk gradient softly blurred violet, amber, and rose, like a sunset photograph, slightly dimmed for readability (film-grain throughout). Top-left: the room title "Golden Hour" in a warm serif with a small pulsing rose "live" dot, and the mono room code "S8DK2F" beneath it in soft amber — the ONLY permanent element, with a faint drop shadow. Everything else appears only while the mouse moves, fading back out after ~2 s idle. Top-right: a vertical stack of three member rows (tiny avatar circle + name), the non-speakers dimmed to faint grey ghosts so the wallpaper shows through, speakers glowing with a soft amber ring and bright warm name, a tiny green dot on the actively talking avatar. Bottom-left: a small dark-glass pill with prev / amber play / next and a truncated track name; hovering expands it into a small card with album art, track/artist, and a slender amber-to-rose seek line with times. Bottom-right: a small dark-glass circle labeled "i"; hovering opens a compact dark card listing room name, code, host, and each member with a status dot (green live / rose muted / grey away). The scene is serene, cinematic, gallery-like, glassy but ultra-minimal, warm amber and violet on deep charcoal, no neon, no bars, no dashboards. Rendered as a calm lofi film still.
 
 **Paper canvas structure:**
-- `Artboard` `room-hero` (full-bleed, 1440×900). Layers via `write_html`:
-  - `WallpaperLayer` — user-chosen full-bleed image, fixed, cover.
-  - `ScrimLayer` — `--scrim-base` full-bleed.
-  - `TopBar` (flex row, space-between, padding 24, translucent glass `--scrim-panel`, backdrop-blur):
-    - `RoomCodeChip` (mono code + copy icon) — states [default/copied glow].
-    - `Spacer`.
-    - `MemberRow` (flex row, gap 12) — `MemberTile` ×4:
-      - each: `AvatarMuted`, `Name`, optional badges [host, audioOn, videoOn, audioOff, you-ring, speaking-glow].
-  - `PlayerBar` (bottom-docked, flex row, gap 16, glass `--bg-depth-2` + blur, radius 16, margin 24):
-    - `Artwork` (48–64 rounded square, cover class)
-    - `TrackMeta` (title, artist, mono duration)
-    - `PlayerControls` (prev / play-pause / next) — circular icon buttons
-    - `SeekSlider` (gradient amber→rose fill, thumb)
-    - (optional `VolumeControl`)
-  - `ChatToggle` (bottom-right glass icon button, unread dot).
-  - `MediaToggles` (bottom-center, two glass circular buttons, mic / camera).
-  - `PickerTriggers` (subtle ghost buttons: "Track", "Wallpaper") — place near PlayerBar.
-- Component states: `MemberTile` [host×audioOn, host×audioOff, guest×videoOn, guest×muted, you, you-speaking, you-videoOn]; `PlayerBar` [playing/paused]; `SeekSlider` [idle/hover/drag/end]; `RoomCodeChip` [idle/copied]; `ChatToggle` [closed/open-with-unread].
+- `Artboard` `room-hero` (hovered UI state, full-bleed 1440×900). Layers via `write_html`:
+  - `MediaLayer` — full-bleed user media (image cover; **video = silent loop, muted, playsInline, cover**). Artboard shows a still/proxy image.
+  - `TitleBlock` (top-left, absolute, always on): `RoomTitle` (display serif, 20px, drop shadow) + `LiveDot` + `RoomCode` (mono, amber, letter-spaced 2px).
+  - `PeopleStack` (top-right, absolute, flex column, gap 10, right-aligned): `MemberRow` ×3 — each `Avatar`(34 circle) + `Name`(12px). Rest state: ~35% opacity, grey into the media. Speaking state: amber ring + glow + full-bright name + green speaking dot.
+  - `PlayerMiniPill` (bottom-left, absolute): prev / amber play / next (Feather SVGs) + truncated `TrackTitle`. Hover → expands.
+  - `TrackCard` (absolute above pill): `Artwork`(44 rounded), `TrackTitle`/`Artist`, `SeekBar` (gradient amber→rose fill + thumb), mono `Times`.
+  - `InfoButton` (bottom-right, absolute "i" circle). Hover → opens `InfoCard` (absolute): room name/code/host rows + `MemberRow` ×3 with status dots [live/muted/away].
+- `Artboard` `room-hero-idle` (clean state): `MediaLayer` + `TitleBlock` only — documents the default view.
+- Interaction model: pointer-move shows UI (fade ~250 ms); 2 s idle hides everything except `TitleBlock`. `PlayerMiniPill` and `InfoButton` expand their cards on hover.
+- Component states: `MemberRow` [idle-grey / speaking-amber / muted]; `PlayerMiniPill` [collapsed / expanded]; `InfoButton` [closed / open]; `TrackCard` [paused/playing]; `SeekBar` [idle/hover/drag/end].
 - Edge/error states:
-  - **0 others → 3 empty member slots:** muted ghost tiles with dashed hairline + "waiting for friends…" muted mono hint. Room persists when empty.
-  - **Room lost / peer dropped:** `ErrorBanner` "Your room went quiet" + reconnect; member tiles gray out.
-  - **Everyone muted, you only:** player still plays; presence dots all gray, no alarm.
-  - **Track ended / no track:** PlayerBar artwork placeholder (abstract dusk art), "Nothing playing yet — pick a track".
-  - **4 members full:** a full member tile shows "you + 3 friends"; a system chat line notes the cap.
+  - **0 others:** `PeopleStack` empty; a faint dashes placeholder row "waiting for friends…" while media stays clean. Room persists when empty.
+  - **Room lost / peer dropped:** `InfoCard` shows error line "Your room went quiet" + reconnect; member rows grey out.
+  - **Everyone muted, you only:** media still plays; status dots all grey, no alarm.
+  - **No track:** `TrackCard` artwork placeholder + "Nothing playing yet — pick a track"; mini pill shows only play button.
+  - **No upload / first run:** `MediaLayer` falls back to the default `Dusk` gradient (artifact `Wallpaper Picker` presets).
 
 ### d. Track Picker
 
@@ -311,10 +312,10 @@ Model all tokens as **CSS custom properties** on the `:root`, so they sync strai
 
 - **Breakpoint stack:** desktop ≥ 900 wide; tablet ~600–900; mobile < 600. Room code size scales from 40px → 28px on mobile.
 - **Mobile adaptation:**
-  - `MemberRow` collapses into a horizontally scrollable strip (or a single "3 friends" chip that expands a small sheet).
-  - `PlayerBar` re-stacks: artwork + meta top, seek + controls bottom; controls remain one-thumb reachable.
+  - `PeopleStack` collapses into a horizontally scrollable avatar strip (or a single "3 friends" chip that expands a small sheet).
+  - `PlayerMiniPill` re-stacks: expanded `TrackCard` shows artwork + meta top, seek + controls bottom; controls remain one-thumb reachable.
   - `ChatPanel` becomes full-width bottom sheet (not a right rail) with taller input and larger hit targets.
-  - `MediaToggles` + `ChatToggle` cluster into a floating bottom pill group (safe-area aware).
+  - All hover-reveal becomes **tap-reveal**: tap on media toggles UI visibility (idle-hide stays), tap pill/info to expand cards.
   - Picker modals become full-screen bottom sheets with grabber handle; thumbnails scroll horizontally.
   - Tap targets ≥ 44px. `prefers-reduced-motion` respected across all.
 - **Sync note:** wallpaper and track state are peer-driven, so layout reflow must never block playback — keep player control affordances pinned regardless of panel open/close.
@@ -336,8 +337,8 @@ Model all tokens as **CSS custom properties** on the `:root`, so they sync strai
 - Inspect/verify with `get_tree_summary`, `get_screenshot`, `get_jsx`, `get_computed_styles`. Export frames with `export`.
 
 **Flex-layout guidance:**
-- Every surface lives in a flex container (row/column, explicit `gap` + `padding`). No absolute positioning except scrim + wallpaper layers.
-- `CenterStack`, `TopBar`, `PlayerBar`, `MemberRow`, `TrackList`, `MessageList`, `WallpaperGrid` are flex containers; children use `flex: 1` (fill) or `width: fit-content` (hug).
+- Corners use absolute positioning with explicit px (`position:absolute; top/bottom/left/right` — Paper honors these). Everything inside a surface is flex (row/column, explicit `gap` + `padding`).
+- `CenterStack`, `TitleBlock`, `PeopleStack`, `PlayerMiniPill`, `TrackCard`, `InfoCard`, `TrackList`, `MessageList`, `WallpaperGrid` are flex containers; children use explicit px sizes (no percentages — Paper drops `width:100%`).
 - Scroll only inside `MessageList` (column, `overflow-y`) and `WallpaperGrid` (wrap).
 
 **Component state list (names):**
@@ -345,8 +346,8 @@ Model all tokens as **CSS custom properties** on the `:root`, so they sync strai
 - `GhostButton / State` [default, hover, active, disabled]
 - `IconButton / Kind` [mic, video, chat, close, copy, prev, play, pause, next, volume]
 - `RoomCodeInput / State` [idle, focused, filled, error, disabled]
-- `MemberTile / Status` [host, host-audiooff, guest, guest-video, you, you-speaking, you-video, empty-slot]
-- `PlayerBar / State` [playing, paused]
+- `MemberRow / Status` [idle-grey, speaking-amber, muted]
+- `PlayerMiniPill / State` [collapsed, expanded] ; `TrackCard / State` [playing, paused]
 - `SeekSlider / State` [idle, hover, dragging, end]
 - `TrackRow / State` [default, hover, selected, playing, loading]
 - `ChatMessage / Kind` [default, system, own, new]
@@ -371,9 +372,9 @@ Model all tokens as **CSS custom properties** on the `:root`, so they sync strai
 ## 5. Sequencing
 
 **Design order:**
-1. **Room screen first** (the hero, §3c). It defines the canvas: wallpaper + scrim + glass + player + presence. Everything else inherits from it.
+1. **Room screen first** (the hero, §3c). It defines the canvas: media + always-on title + hover-reveal corners (people / player / info). Everything else inherits from it.
 2. **Foundations** derived from the Room: lock the 4-accent warm palette, type pairing, glow language *after* Room feels right (not before — the Room proves the tokens).
-3. **Components** that the Room uses day-one: `PlayerBar`, `MemberTile`, `RoomCodeInput`, `IconButton`, `PrimaryButton`.
+3. **Components** that the Room uses day-one: `PlayerMiniPill`, `TrackCard`, `MemberRow`, `RoomCodeInput`, `IconButton`, `PrimaryButton`.
 4. **Modals & pickers** (Track, Wallpaper) reusing the same glass sheet language.
 5. **Room Full / Not Found / Invalid** guard screens.
 6. **Loading/Connecting** states last (they're glue, cheap once components exist).
@@ -397,6 +398,6 @@ Excluded by design for the anonymous v1 (YAGNI):
 - **Onboarding / tutorial tours.**
 - **Settings / preferences.**
 - **Profiles / avatars beyond the anonymous name + media badges.**
-- **Server-backed persistence, history, or friend lists** (rooms are peer-synced; only last-50 chat and room existence persist, minimal).
+- **Server-backed persistence, history, or friend lists** (rooms are peer-synced; only last-50 activity entries and room existence persist, minimal).
 
 Keep the surface to: enter anonymous name → create/join → room (wallpaper, player, presence, chat). Everything else is future scope and would dilute the calm.

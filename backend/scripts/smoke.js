@@ -128,12 +128,12 @@ async function scenario() {
         await denyP;
         pass("non-host title write rejected", "code=NOT_HOST");
 
-        // 8. guest sends chat -> host receives with author displayName
+        // 8. guest sends chat -> host receives room:activity with chat entry
         console.log("\n[4] chat");
-        const chatP = waitFor(A, "chat:message", (p) => p.senderId === B.id && p.text === "hello from smoke");
-        B.emit("chat:send", { text: "hello from smoke" });
-        const msg = await chatP;
-        pass("chat syncs guest -> host", `"${msg.text}"`);
+        const chatP = waitFor(A, "room:activity", (p) => p.entry && p.entry.type === "chat" && p.entry.actor.socketId === B.id && p.entry.detail === "hello from smoke");
+        B.emit("activity:send", { text: "hello from smoke" });
+        const chatAct = await chatP;
+        pass("chat syncs guest -> host", `"${chatAct.entry.detail}"`);
 
         // 9. media flags broadcast
         console.log("\n[5] presence + rtc relay");
@@ -142,13 +142,29 @@ async function scenario() {
         await mediaP;
         pass("media flags sync host -> guest", "audio=on video=on");
 
-        // 10. host relays an offer to guest
+        // 10. timer: start, pause, reset
+        const timerP = waitFor(B, "timer:state", (p) => p.status === "running");
+        A.emit("timer:start", { minutes: 25 });
+        const timerState = await timerP;
+        pass("timer start syncs host -> guest", `duration=${timerState.durationMs}ms`);
+
+        const timerPauseP = waitFor(B, "timer:state", (p) => p.status === "paused");
+        A.emit("timer:pause");
+        await timerPauseP;
+        pass("timer pause syncs host -> guest", "status=paused");
+
+        const timerResetP = waitFor(B, "timer:state", (p) => p.status === "idle");
+        A.emit("timer:reset");
+        await timerResetP;
+        pass("timer reset syncs host -> guest", "status=idle");
+
+        // 11. host relays an offer to guest
         const offerP = waitFor(B, "rtc:offer", (p) => p.from === A.id && p.sdp === "v=0 smoke-offer");
         A.emit("rtc:offer", { to: B.id, sdp: "v=0 smoke-offer" });
         const relayed = await offerP;
         pass("rtc:offer relayed host -> guest", `from=${relayed.from.slice(0, 8)}… sdp=${relayed.sdp}`);
 
-        // 11. late snapshot: get_state reflects title from a third observer
+        // 12. late snapshot: get_state reflects title from a third observer
         // (room:get_state round-trip — exercises full state serialization)
         const { socket: observer } = await connect("Observer");
         const obJoinedP = waitFor(observer, "room:joined", (p) => p.state && p.state.title === "Smoke Room");

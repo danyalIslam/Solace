@@ -190,74 +190,70 @@ describe("RoomService", () => {
         });
     });
 
-    describe("sendChat", () => {
-        test("valid text -> returns message with id, senderId, displayName, text, sentAt", () => {
+    describe("sendActivity (chat type)", () => {
+        test("valid text -> returns chat entry with id, type, actor, detail, at", () => {
             const { roomId } = service.createRoom("Host", socketId);
-            const { message } = service.sendChat(roomId, socketId, "hello");
-            assert.equal(typeof message.id, "string");
-            assert.ok(message.id.length > 0);
-            assert.equal(message.senderId, socketId);
-            assert.equal(message.displayName, "Host");
-            assert.equal(message.text, "hello");
-            assert.equal(typeof message.sentAt, "number");
+            const { entry } = service.sendActivity(roomId, socketId, "hello");
+            assert.equal(typeof entry.id, "string");
+            assert.ok(entry.id.length > 0);
+            assert.equal(entry.type, "chat");
+            assert.equal(entry.detail, "hello");
+            assert.equal(entry.actor.socketId, socketId);
+            assert.equal(entry.actor.displayName, "Host");
+            assert.equal(typeof entry.at, "number");
         });
 
-        test("appends message to state.chat", () => {
+        test("appends message to state.activity", () => {
             const { roomId } = service.createRoom("Host", socketId);
-            service.sendChat(roomId, socketId, "first");
-            service.sendChat(roomId, socketId, "second");
-            assert.equal(service.getState(roomId).state.chat.length, 2);
-            assert.equal(service.getState(roomId).state.chat[0].text, "first");
-            assert.equal(service.getState(roomId).state.chat[1].text, "second");
+            service.sendActivity(roomId, socketId, "first");
+            service.sendActivity(roomId, socketId, "second");
+            const act = service.getState(roomId).state.activity;
+            assert.equal(act.length, 2);
+            assert.equal(act[0].detail, "first");
+            assert.equal(act[1].detail, "second");
         });
 
         test("trims whitespace", () => {
             const { roomId } = service.createRoom("Host", socketId);
-            const { message } = service.sendChat(roomId, socketId, "  hi  ");
-            assert.equal(message.text, "hi");
+            const { entry } = service.sendActivity(roomId, socketId, "  hi  ");
+            assert.equal(entry.detail, "hi");
         });
 
         test("empty text -> InvalidPayloadError", () => {
             const { roomId } = service.createRoom("H", socketId);
-            assert.throws(() => service.sendChat(roomId, socketId, ""), InvalidPayloadError);
-            assert.throws(() => service.sendChat(roomId, socketId, "   "), InvalidPayloadError);
+            assert.throws(() => service.sendActivity(roomId, socketId, ""), InvalidPayloadError);
+            assert.throws(() => service.sendActivity(roomId, socketId, "   "), InvalidPayloadError);
         });
 
         test("non-string text -> InvalidPayloadError", () => {
             const { roomId } = service.createRoom("H", socketId);
-            assert.throws(() => service.sendChat(roomId, socketId, undefined), InvalidPayloadError);
-            assert.throws(() => service.sendChat(roomId, socketId, null), InvalidPayloadError);
-            assert.throws(() => service.sendChat(roomId, socketId, 42), InvalidPayloadError);
+            assert.throws(() => service.sendActivity(roomId, socketId, undefined), InvalidPayloadError);
+            assert.throws(() => service.sendActivity(roomId, socketId, null), InvalidPayloadError);
+            assert.throws(() => service.sendActivity(roomId, socketId, 42), InvalidPayloadError);
         });
 
         test("too long text -> InvalidPayloadError", () => {
             const { roomId } = service.createRoom("H", socketId);
-            assert.throws(() => service.sendChat(roomId, socketId, "a".repeat(501)), InvalidPayloadError);
-            assert.doesNotThrow(() => service.sendChat(roomId, socketId, "a".repeat(500)));
+            assert.throws(() => service.sendActivity(roomId, socketId, "a".repeat(501)), InvalidPayloadError);
+            assert.doesNotThrow(() => service.sendActivity(roomId, socketId, "a".repeat(500)));
         });
 
         test("missing room -> RoomNotFoundError", () => {
-            assert.throws(() => service.sendChat("NOPE", socketId, "hi"), RoomNotFoundError);
+            assert.throws(() => service.sendActivity("NOPE", socketId, "hi"), RoomNotFoundError);
         });
 
         test("non-member -> NotInRoomError", () => {
             const { roomId } = service.createRoom("H", socketId);
-            assert.throws(() => service.sendChat(roomId, "stranger", "hi"), NotInRoomError);
+            assert.throws(() => service.sendActivity(roomId, "stranger", "hi"), NotInRoomError);
         });
 
-        test("cap at MAX_CHAT_HISTORY drops oldest", () => {
+        test("cap at MAX_ACTIVITY_HISTORY drops oldest", () => {
             const { roomId } = service.createRoom("H", socketId);
-            const firstId = service.sendChat(roomId, socketId, "msg-0").message.id;
-            for (let i = 1; i < 55; i++) {
-                service.sendChat(roomId, socketId, "msg-" + i);
-            }
-            const chat = service.getState(roomId).state.chat;
-            assert.equal(chat.length, MAX_CHAT_HISTORY);
-            assert.equal(chat.length, 50);
-            const ids = chat.map((m) => m.id);
-            assert.ok(!ids.includes(firstId), "oldest message must be dropped");
-            assert.equal(chat[chat.length - 1].text, "msg-54");
-            assert.equal(chat[0].text, "msg-5");
+            for (let i = 0; i < 55; i++) service.sendActivity(roomId, socketId, "msg-" + i);
+            const act = service.getState(roomId).state.activity;
+            assert.equal(act.length, MAX_ACTIVITY_HISTORY);
+            assert.ok(!act.some((e) => e.detail === "msg-0"), "oldest dropped");
+            assert.equal(act[act.length - 1].detail, "msg-54");
         });
     });
 

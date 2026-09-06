@@ -37,7 +37,9 @@ const SERVER_EVENTS = [
     "room:title_state",
     "playback:state",
     "wallpaper:state",
-    "chat:message",
+    "room:activity",
+    "timer:state",
+    "timer:complete",
     "rtc:config",
     "rtc:media_state",
     "rtc:offer",
@@ -143,8 +145,11 @@ function handleCommand(line) {
                     "  track <trackUrl>     — playback:set_track",
                     "  wall <url>           — wallpaper:set",
                     "  title <text>         — room:set_title (host only)",
-                    "  say <text>           — chat:send",
+                    "  say <text>           — activity:send (chat)",
                     "  media <on|off>       — rtc:media { audio, video }",
+                    "  timer <minutes>      — timer:start (1-180)",
+                    "  timer pause          — timer:pause",
+                    "  timer reset          — timer:reset",
                     "  offer <targetId> <sdp> — rtc:offer relay",
                     "  quit / exit          — disconnect + exit",
                 ].join("\n")
@@ -222,7 +227,7 @@ function handleCommand(line) {
                 console.log("Usage: say <text>");
                 break;
             }
-            emit("chat:send", { text: rest.join(" ") });
+            emit("activity:send", { text: rest.join(" ") });
             break;
 
         case "media": {
@@ -235,6 +240,17 @@ function handleCommand(line) {
             emit("rtc:media", { audio: v, video: v });
             break;
         }
+
+        case "timer":
+            if (arg0 === "pause") { emit("timer:pause"); break; }
+            if (arg0 === "reset") { emit("timer:reset"); break; }
+            const m = Number(arg0);
+            if (!arg0 || Number.isNaN(m) || m < 1 || m > 180) {
+                console.log("Usage: timer <minutes 1-180> | pause | reset");
+                break;
+            }
+            emit("timer:start", { minutes: m });
+            break;
 
         case "offer": {
             const to = rest[1];
