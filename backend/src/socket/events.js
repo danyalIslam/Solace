@@ -31,6 +31,7 @@ const SERVER = {
     TIMER_COMPLETE: "timer:complete",
     PLAYBACK_STATE: "playback:state",
     WALLPAPER_STATE: "wallpaper:state",
+    WALLPAPER_UPLOADS: "wallpaper:uploads",
     RTC_CONFIG: "rtc:config",
     RTC_MEDIA_STATE: "rtc:media_state",
     RTC_OFFER: "rtc:offer",
