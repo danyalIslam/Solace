@@ -282,6 +282,38 @@ describe("RoomService", () => {
             assert.equal(updated2.videoOn, true);
         });
 
+        test("partial update keeps omitted flag", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            service.setMedia(roomId, socketId, { audio: true, video: true });
+            const updated = service.setMedia(roomId, socketId, { audio: false });
+            assert.equal(updated.audioOn, false);
+            assert.equal(updated.videoOn, true);
+            const updated2 = service.setMedia(roomId, socketId, { video: false });
+            assert.equal(updated2.audioOn, false);
+            assert.equal(updated2.videoOn, false);
+        });
+
+        test("invalid type -> InvalidPayloadError with code INVALID_PAYLOAD", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            try {
+                service.setMedia(roomId, socketId, { audio: "banana", video: true });
+                assert.fail("expected InvalidPayloadError");
+            } catch (err) {
+                assert.ok(err instanceof InvalidPayloadError);
+                assert.equal(err.code, "INVALID_PAYLOAD");
+            }
+            assert.throws(() => service.setMedia(roomId, socketId, { video: {} }), InvalidPayloadError);
+            assert.throws(() => service.setMedia(roomId, socketId, { audio: [], video: true }), InvalidPayloadError);
+        });
+
+        test("undefined value treated as omitted and skips validation", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            service.setMedia(roomId, socketId, { audio: true, video: true });
+            const updated = service.setMedia(roomId, socketId, { audio: true, video: undefined });
+            assert.equal(updated.videoOn, true);
+            assert.equal(updated.audioOn, true);
+        });
+
         test("snapshot reflects updated flags", () => {
             const { roomId } = service.createRoom("H", socketId);
             service.setMedia(roomId, socketId, { audio: false, video: true });

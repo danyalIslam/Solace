@@ -7,10 +7,13 @@ const MAX_CHAT_HISTORY = 50;
 const MAX_CHAT_TEXT_LENGTH = 500;
 const PLAYBACK_STATUSES = ["playing", "paused"];
 
-function coerceBoolean(value) {
+function coerceBoolean(value, field) {
+    if (value === true || value === false) return value;
     if (value === "true") return true;
     if (value === "false") return false;
-    return Boolean(value);
+    if (value === 1) return true;
+    if (value === 0) return false;
+    throw new InvalidPayloadError(`${field} must be true, false, 'true', 'false', 1, or 0`);
 }
 
 class RoomNotFoundError extends Error {
@@ -180,8 +183,8 @@ class RoomService {
         const room = this._assertRoom(roomId);
         const member = room.members.get(socketId);
         if (!member) throw new TargetNotInRoomError();
-        member.audioOn = coerceBoolean(audio);
-        member.videoOn = coerceBoolean(video);
+        if (audio !== undefined) member.audioOn = coerceBoolean(audio, "audio");
+        if (video !== undefined) member.videoOn = coerceBoolean(video, "video");
         return { socketId, displayName: member.displayName, audioOn: member.audioOn, videoOn: member.videoOn };
     }
 
