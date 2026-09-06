@@ -37,6 +37,11 @@ const SERVER_EVENTS = [
     "playback:state",
     "wallpaper:state",
     "chat:message",
+    "rtc:config",
+    "rtc:media_state",
+    "rtc:offer",
+    "rtc:answer",
+    "rtc:ice",
 ];
 
 const rl = readline.createInterface({
@@ -137,6 +142,8 @@ function handleCommand(line) {
                     "  track <trackUrl>     — playback:set_track",
                     "  wall <url>           — wallpaper:set",
                     "  say <text>           — chat:send",
+                    "  media <on|off>       — rtc:media { audio, video }",
+                    "  offer <targetId> <sdp> — rtc:offer relay",
                     "  quit / exit          — disconnect + exit",
                 ].join("\n")
             );
@@ -207,6 +214,28 @@ function handleCommand(line) {
             }
             emit("chat:send", { text: rest.join(" ") });
             break;
+
+        case "media": {
+            const arg = rest[0];
+            if (arg !== "on" && arg !== "off") {
+                console.log("Usage: media <on|off>");
+                break;
+            }
+            const v = arg === "on";
+            emit("rtc:media", { audio: v, video: v });
+            break;
+        }
+
+        case "offer": {
+            const to = rest[1];
+            const sdp = rest[2];
+            if (!to || !sdp) {
+                console.log("Usage: offer <targetId> <sdp>");
+                break;
+            }
+            emit("rtc:offer", { to, sdp });
+            break;
+        }
 
         case "quit":
         case "exit":
