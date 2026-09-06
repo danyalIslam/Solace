@@ -14,7 +14,12 @@ describe("Room entity", () => {
             position: 0,
             updatedAt: room.state.playback.updatedAt
         });
-        assert.deepEqual(room.state.wallpaper, { url: null });
+        assert.deepEqual(room.state.wallpaper, {
+            url: null,
+            kind: "image",
+            changedBy: null,
+            updatedAt: room.state.wallpaper.updatedAt
+        });
         assert.deepEqual(room.state.activity, []);
         assert.equal(room.state.title, "");
         assert.equal(room.state.timer.status, "idle");
@@ -69,6 +74,12 @@ describe("Room entity", () => {
         assert.equal(room.state.timer.endsAt, null);
         assert.equal(typeof room.state.timer.updatedAt, "number");
         assert.ok(!("chat" in room.state), "chat must be removed from room state");
+    });
+
+    test("default state has an empty wallpapers library", () => {
+        const room = new Room("R");
+        assert.deepEqual(room.state.wallpapers, []);
+        assert.equal(room.state.wallpaper.kind, "image");
     });
 
     test("members default to media off and snapshot carries flags", () => {

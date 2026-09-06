@@ -10,8 +10,12 @@ class Room {
                 updatedAt: Date.now()
             },
             wallpaper: {
-                url: null
+                url: null,
+                kind: "image",
+                changedBy: null,
+                updatedAt: Date.now()
             },
+            wallpapers: [],
             activity: [],
             title: "",
             timer: {
