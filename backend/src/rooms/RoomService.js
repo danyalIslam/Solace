@@ -3,7 +3,7 @@ const Room = require("./Room");
 const MAX_ROOM_MEMBERS = 4;
 const MAX_DISPLAY_NAME_LENGTH = 24;
 const MAX_WALLPAPER_URL_LENGTH = 2048;
-const MAX_CHAT_HISTORY = 50;
+const MAX_ACTIVITY_HISTORY = 50;
 const MAX_CHAT_TEXT_LENGTH = 500;
 const MAX_ROOM_TITLE_LENGTH = 60;
 const PLAYBACK_STATUSES = ["playing", "paused"];
@@ -166,26 +166,34 @@ class RoomService {
         return { room, url };
     }
 
-    sendChat(roomId, socketId, text) {
+    appendActivity(roomId, { type, actor, detail }) {
+        const room = this._assertRoom(roomId);
+        const entry = {
+            id: require("crypto").randomUUID(),
+            type,
+            actor,
+            detail,
+            at: Date.now()
+        };
+        room.state.activity.push(entry);
+        if (room.state.activity.length > MAX_ACTIVITY_HISTORY) {
+            room.state.activity = room.state.activity.slice(-MAX_ACTIVITY_HISTORY);
+        }
+        return { room, entry };
+    }
+
+    sendActivity(roomId, socketId, text) {
         const room = this._assertRoom(roomId);
         this._assertMember(room, socketId);
         if (typeof text !== "string" || text.trim().length === 0 || text.length > MAX_CHAT_TEXT_LENGTH) {
             throw new InvalidPayloadError(`text must be a non-empty string of at most ${MAX_CHAT_TEXT_LENGTH} chars`);
         }
-        const trimmed = text.trim();
         const member = room.members.get(socketId);
-        const message = {
-            id: require("crypto").randomUUID(),
-            senderId: socketId,
-            displayName: member.displayName,
-            text: trimmed,
-            sentAt: Date.now()
-        };
-        room.state.chat.push(message);
-        if (room.state.chat.length > MAX_CHAT_HISTORY) {
-            room.state.chat = room.state.chat.slice(-MAX_CHAT_HISTORY);
-        }
-        return { room, message };
+        return this.appendActivity(room.id, {
+            type: "chat",
+            actor: { socketId, displayName: member.displayName },
+            detail: text.trim()
+        });
     }
 
     setMedia(roomId, socketId, { audio, video }) {
@@ -230,4 +238,4 @@ module.exports.TargetNotInRoomError = TargetNotInRoomError;
 module.exports.InvalidPayloadError = InvalidPayloadError;
 module.exports.NotHostError = NotHostError;
 module.exports.MAX_ROOM_MEMBERS = MAX_ROOM_MEMBERS;
-module.exports.MAX_CHAT_HISTORY = MAX_CHAT_HISTORY;
+module.exports.MAX_ACTIVITY_HISTORY = MAX_ACTIVITY_HISTORY;

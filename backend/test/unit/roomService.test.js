@@ -11,7 +11,7 @@ const {
     TargetNotInRoomError,
     NotHostError,
     MAX_ROOM_MEMBERS,
-    MAX_CHAT_HISTORY
+    MAX_ACTIVITY_HISTORY
 } = require("../../src/rooms/RoomService");
 
 function freshStore() {
@@ -378,6 +378,41 @@ describe("RoomService", () => {
                 () => service.setTitle(roomId, socketId, { title: "a".repeat(61) }),
                 InvalidPayloadError
             );
+        });
+    });
+
+    describe("activity log", () => {
+        test("sendActivity appends a chat-type entry with actor displayName", () => {
+            const { roomId, room } = service.createRoom("Host", socketId);
+            const res = service.sendActivity(roomId, socketId, "hello");
+            assert.equal(res.entry.type, "chat");
+            assert.equal(res.entry.detail, "hello");
+            assert.equal(res.entry.actor.socketId, socketId);
+            assert.equal(res.entry.actor.displayName, "Host");
+            assert.equal(typeof res.entry.id, "string");
+            assert.equal(typeof res.entry.at, "number");
+        });
+
+        test("appendActivity caps at MAX_ACTIVITY_HISTORY and drops oldest", () => {
+            const { roomId } = service.createRoom("Host", socketId);
+            for (let i = 0; i < MAX_ACTIVITY_HISTORY + 5; i++) {
+                service.appendActivity(roomId, { type: "system", actor: null, detail: "e" + i });
+            }
+            const act = service.getState(roomId).state.activity;
+            assert.equal(act.length, MAX_ACTIVITY_HISTORY);
+            assert.equal(act[0].detail, "e5");
+            assert.equal(act[act.length - 1].detail, "e" + (MAX_ACTIVITY_HISTORY + 4));
+        });
+
+        test("sendActivity rejects empty text with InvalidPayloadError", () => {
+            const { roomId } = service.createRoom("Host", socketId);
+            assert.throws(() => service.sendActivity(roomId, socketId, "   "), InvalidPayloadError);
+            assert.throws(() => service.sendActivity(roomId, socketId, "a".repeat(501)), InvalidPayloadError);
+        });
+
+        test("sendActivity from non-member -> NotInRoomError", () => {
+            const { roomId } = service.createRoom("Host", socketId);
+            assert.throws(() => service.sendActivity(roomId, "stranger", "hi"), NotInRoomError);
         });
     });
 
