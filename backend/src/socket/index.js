@@ -5,6 +5,7 @@ const { CLIENT, SERVER } = require("./events");
 const createRoomHandler = require("./handlers/roomHandler");
 const createPlaybackHandler = require("./handlers/playbackHandler");
 const createWallpaperHandler = require("./handlers/wallpaperHandler");
+const createChatHandler = require("./handlers/chatHandler");
 
 function createSocketServer(httpServer) {
     const io = new Server(httpServer, {
@@ -18,6 +19,7 @@ function createSocketServer(httpServer) {
     const roomHandler = createRoomHandler(io, roomService);
     const playbackHandler = createPlaybackHandler(io, roomService);
     const wallpaperHandler = createWallpaperHandler(io, roomService);
+    const chatHandler = createChatHandler(io, roomService);
 
     io.on("connection", (socket) => {
         socket.on(CLIENT.ROOM_CREATE, (payload) => roomHandler.handleCreate(socket, payload));
@@ -29,6 +31,7 @@ function createSocketServer(httpServer) {
         socket.on(CLIENT.PLAYBACK_SEEK, (payload) => playbackHandler.handleSeek(socket, payload));
         socket.on(CLIENT.PLAYBACK_SET_TRACK, (payload) => playbackHandler.handleSetTrack(socket, payload));
         socket.on(CLIENT.WALLPAPER_SET, (payload) => wallpaperHandler.handleSetWallpaper(socket, payload));
+        socket.on(CLIENT.CHAT_SEND, (payload) => chatHandler.handleSend(socket, payload));
 
         socket.on("disconnect", () => {
             const room = roomService.resolveRoomBySocket(socket.id);

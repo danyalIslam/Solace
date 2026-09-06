@@ -7,7 +7,8 @@ const CLIENT = {
     PLAYBACK_PAUSE: "playback:pause",
     PLAYBACK_SEEK: "playback:seek",
     PLAYBACK_SET_TRACK: "playback:set_track",
-    WALLPAPER_SET: "wallpaper:set"
+    WALLPAPER_SET: "wallpaper:set",
+    CHAT_SEND: "chat:send"
 };
 
 const SERVER = {
@@ -17,7 +18,8 @@ const SERVER = {
     ROOM_MEMBER_LEFT: "room:member_left",
     ROOM_ERROR: "room:error",
     PLAYBACK_STATE: "playback:state",
-    WALLPAPER_STATE: "wallpaper:state"
+    WALLPAPER_STATE: "wallpaper:state",
+    CHAT_MESSAGE: "chat:message"
 };
 
 module.exports = { CLIENT, SERVER };

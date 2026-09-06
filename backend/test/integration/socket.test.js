@@ -198,4 +198,63 @@ test("room:get_state -> full snapshot", async () => {
     assert.equal(snap.roomId, roomId);
     assert.equal(snap.members.length, 2);
     assert.equal(snap.state.playback.status, "paused");
+    assert.deepEqual(snap.state.chat, []);
+});
+
+test("chat:send from member B -> A receives chat:message with sender and text", async () => {
+    const { port } = await boot();
+    const { client: host, roomId } = await createRoom(port, "Host");
+    const { client: guest } = await joinRoom(port, roomId, "Bob");
+
+    const msgPromise = waitForEvent(host, "chat:message", (p) => p.senderId === guest.id && p.text === "hey bob");
+    guest.emit("chat:send", { text: "hey bob" });
+    const msg = await msgPromise;
+    assert.equal(msg.senderId, guest.id);
+    assert.equal(msg.displayName, "Bob");
+    assert.equal(msg.text, "hey bob");
+    assert.equal(typeof msg.id, "string");
+    assert.equal(typeof msg.sentAt, "number");
+});
+
+test("chat:send -> sender B also receives own chat:message", async () => {
+    const { port } = await boot();
+    const { client: host, roomId } = await createRoom(port, "Host");
+    const { client: guest } = await joinRoom(port, roomId, "Bob");
+
+    const selfPromise = waitForEvent(guest, "chat:message", (p) => p.text === "self");
+    guest.emit("chat:send", { text: "self" });
+    const msg = await selfPromise;
+    assert.equal(msg.senderId, guest.id);
+    assert.equal(msg.text, "self");
+});
+
+test("new joiner after chat -> room:joined state.chat contains earlier message", async () => {
+    const { port } = await boot();
+    const { roomId } = await createRoom(port, "Host");
+    const { client: guest } = await joinRoom(port, roomId, "Bob");
+    guest.emit("chat:send", { text: "before join" });
+    await waitForEvent(guest, "chat:message", (p) => p.text === "before join");
+
+    const { joined } = await joinRoom(port, roomId, "Carol");
+    const chat = joined.state.chat;
+    assert.ok(chat.length >= 1);
+    assert.equal(chat[0].text, "before join");
+});
+
+test("chat:send invalid empty text -> room:error INVALID_PAYLOAD", async () => {
+    const { port } = await boot();
+    const { client: host } = await createRoom(port, "Host");
+    const errPromise = waitForEvent(host, "room:error", (p) => p.code === "INVALID_PAYLOAD");
+    host.emit("chat:send", { text: "   " });
+    const err = await errPromise;
+    assert.equal(err.code, "INVALID_PAYLOAD");
+});
+
+test("non-member chat:send -> room:error NOT_IN_ROOM", async () => {
+    const { port } = await boot();
+    const stranger = track(await connectClient(port));
+    const errPromise = waitForEvent(stranger, "room:error", (p) => p.code === "NOT_IN_ROOM");
+    stranger.emit("chat:send", { text: "hi" });
+    const err = await errPromise;
+    assert.equal(err.code, "NOT_IN_ROOM");
 });

@@ -8,7 +8,8 @@ const {
     AlreadyInRoomError,
     NotInRoomError,
     InvalidPayloadError,
-    MAX_ROOM_MEMBERS
+    MAX_ROOM_MEMBERS,
+    MAX_CHAT_HISTORY
 } = require("../../src/rooms/RoomService");
 
 function freshStore() {
@@ -184,6 +185,77 @@ describe("RoomService", () => {
             const { room, url } = service.setWallpaper(roomId, socketId, "http://wall/1.png");
             assert.equal(url, "http://wall/1.png");
             assert.equal(room.state.wallpaper.url, "http://wall/1.png");
+        });
+    });
+
+    describe("sendChat", () => {
+        test("valid text -> returns message with id, senderId, displayName, text, sentAt", () => {
+            const { roomId } = service.createRoom("Host", socketId);
+            const { message } = service.sendChat(roomId, socketId, "hello");
+            assert.equal(typeof message.id, "string");
+            assert.ok(message.id.length > 0);
+            assert.equal(message.senderId, socketId);
+            assert.equal(message.displayName, "Host");
+            assert.equal(message.text, "hello");
+            assert.equal(typeof message.sentAt, "number");
+        });
+
+        test("appends message to state.chat", () => {
+            const { roomId } = service.createRoom("Host", socketId);
+            service.sendChat(roomId, socketId, "first");
+            service.sendChat(roomId, socketId, "second");
+            assert.equal(service.getState(roomId).state.chat.length, 2);
+            assert.equal(service.getState(roomId).state.chat[0].text, "first");
+            assert.equal(service.getState(roomId).state.chat[1].text, "second");
+        });
+
+        test("trims whitespace", () => {
+            const { roomId } = service.createRoom("Host", socketId);
+            const { message } = service.sendChat(roomId, socketId, "  hi  ");
+            assert.equal(message.text, "hi");
+        });
+
+        test("empty text -> InvalidPayloadError", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            assert.throws(() => service.sendChat(roomId, socketId, ""), InvalidPayloadError);
+            assert.throws(() => service.sendChat(roomId, socketId, "   "), InvalidPayloadError);
+        });
+
+        test("non-string text -> InvalidPayloadError", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            assert.throws(() => service.sendChat(roomId, socketId, undefined), InvalidPayloadError);
+            assert.throws(() => service.sendChat(roomId, socketId, null), InvalidPayloadError);
+            assert.throws(() => service.sendChat(roomId, socketId, 42), InvalidPayloadError);
+        });
+
+        test("too long text -> InvalidPayloadError", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            assert.throws(() => service.sendChat(roomId, socketId, "a".repeat(501)), InvalidPayloadError);
+            assert.doesNotThrow(() => service.sendChat(roomId, socketId, "a".repeat(500)));
+        });
+
+        test("missing room -> RoomNotFoundError", () => {
+            assert.throws(() => service.sendChat("NOPE", socketId, "hi"), RoomNotFoundError);
+        });
+
+        test("non-member -> NotInRoomError", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            assert.throws(() => service.sendChat(roomId, "stranger", "hi"), NotInRoomError);
+        });
+
+        test("cap at MAX_CHAT_HISTORY drops oldest", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            const firstId = service.sendChat(roomId, socketId, "msg-0").message.id;
+            for (let i = 1; i < 55; i++) {
+                service.sendChat(roomId, socketId, "msg-" + i);
+            }
+            const chat = service.getState(roomId).state.chat;
+            assert.equal(chat.length, MAX_CHAT_HISTORY);
+            assert.equal(chat.length, 50);
+            const ids = chat.map((m) => m.id);
+            assert.ok(!ids.includes(firstId), "oldest message must be dropped");
+            assert.equal(chat[chat.length - 1].text, "msg-54");
+            assert.equal(chat[0].text, "msg-5");
         });
     });
 

@@ -3,6 +3,8 @@ const Room = require("./Room");
 const MAX_ROOM_MEMBERS = 4;
 const MAX_DISPLAY_NAME_LENGTH = 24;
 const MAX_WALLPAPER_URL_LENGTH = 2048;
+const MAX_CHAT_HISTORY = 50;
+const MAX_CHAT_TEXT_LENGTH = 500;
 const PLAYBACK_STATUSES = ["playing", "paused"];
 
 class RoomNotFoundError extends Error {
@@ -138,6 +140,28 @@ class RoomService {
         return { room, url };
     }
 
+    sendChat(roomId, socketId, text) {
+        const room = this._assertRoom(roomId);
+        this._assertMember(room, socketId);
+        if (typeof text !== "string" || text.trim().length === 0 || text.length > MAX_CHAT_TEXT_LENGTH) {
+            throw new InvalidPayloadError(`text must be a non-empty string of at most ${MAX_CHAT_TEXT_LENGTH} chars`);
+        }
+        const trimmed = text.trim();
+        const member = room.members.get(socketId);
+        const message = {
+            id: require("crypto").randomUUID(),
+            senderId: socketId,
+            displayName: member.displayName,
+            text: trimmed,
+            sentAt: Date.now()
+        };
+        room.state.chat.push(message);
+        if (room.state.chat.length > MAX_CHAT_HISTORY) {
+            room.state.chat = room.state.chat.slice(-MAX_CHAT_HISTORY);
+        }
+        return { room, message };
+    }
+
     resolveRoomBySocket(socketId) {
         const rooms = this.store.all();
         for (const room of rooms) {
@@ -156,3 +180,4 @@ module.exports.AlreadyInRoomError = AlreadyInRoomError;
 module.exports.NotInRoomError = NotInRoomError;
 module.exports.InvalidPayloadError = InvalidPayloadError;
 module.exports.MAX_ROOM_MEMBERS = MAX_ROOM_MEMBERS;
+module.exports.MAX_CHAT_HISTORY = MAX_CHAT_HISTORY;

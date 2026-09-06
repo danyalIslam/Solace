@@ -15,6 +15,7 @@ describe("Room entity", () => {
             updatedAt: room.state.playback.updatedAt
         });
         assert.deepEqual(room.state.wallpaper, { url: null });
+        assert.deepEqual(room.state.chat, []);
     });
 
     test("addMember / removeMember", () => {
