@@ -389,6 +389,13 @@ describe("timer", () => {
         const st = await stP;
         assert.equal(st.durationMs, 25 * 60_000);
         assert.equal(typeof st.endsAt, "number");
+
+        // Never leave an armed timer behind: the service schedules a real
+        // setTimeout for the countdown, which would keep the event loop alive
+        // (and the test process hanging) after the suite finishes.
+        const resetP = waitForEvent(host, "timer:state", (p) => p.status === "idle");
+        host.emit("timer:reset");
+        await resetP;
     });
 
     test("timer:start invalid minutes -> room:error INVALID_PAYLOAD", async () => {
