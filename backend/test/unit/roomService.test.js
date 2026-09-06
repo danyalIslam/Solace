@@ -8,6 +8,7 @@ const {
     AlreadyInRoomError,
     NotInRoomError,
     InvalidPayloadError,
+    TargetNotInRoomError,
     MAX_ROOM_MEMBERS,
     MAX_CHAT_HISTORY
 } = require("../../src/rooms/RoomService");
@@ -256,6 +257,52 @@ describe("RoomService", () => {
             assert.ok(!ids.includes(firstId), "oldest message must be dropped");
             assert.equal(chat[chat.length - 1].text, "msg-54");
             assert.equal(chat[0].text, "msg-5");
+        });
+    });
+
+    describe("setMedia", () => {
+        const mediaArgs = { audio: true, video: false };
+
+        test("updates member flags and returns updated member", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            const updated = service.setMedia(roomId, socketId, mediaArgs);
+            assert.equal(updated.socketId, socketId);
+            assert.equal(updated.displayName, "H");
+            assert.equal(updated.audioOn, true);
+            assert.equal(updated.videoOn, false);
+        });
+
+        test("Boolean coercion: 'false' string and falsy values do not become true", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            const updated = service.setMedia(roomId, socketId, { audio: "false", video: 0 });
+            assert.equal(updated.audioOn, false);
+            assert.equal(updated.videoOn, false);
+            const updated2 = service.setMedia(roomId, socketId, { audio: 1, video: "true" });
+            assert.equal(updated2.audioOn, true);
+            assert.equal(updated2.videoOn, true);
+        });
+
+        test("snapshot reflects updated flags", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            service.setMedia(roomId, socketId, { audio: false, video: true });
+            const member = service.getState(roomId).members.find((m) => m.socketId === socketId);
+            assert.equal(member.audioOn, false);
+            assert.equal(member.videoOn, true);
+        });
+
+        test("missing room -> RoomNotFoundError", () => {
+            assert.throws(() => service.setMedia("NOPE", socketId, mediaArgs), RoomNotFoundError);
+        });
+
+        test("non-member -> TargetNotInRoomError", () => {
+            const { roomId } = service.createRoom("H", socketId);
+            try {
+                service.setMedia(roomId, "stranger", mediaArgs);
+                assert.fail("expected TargetNotInRoomError");
+            } catch (err) {
+                assert.ok(err instanceof TargetNotInRoomError);
+                assert.equal(err.code, "TARGET_NOT_IN_ROOM");
+            }
         });
     });
 

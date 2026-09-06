@@ -7,6 +7,12 @@ const MAX_CHAT_HISTORY = 50;
 const MAX_CHAT_TEXT_LENGTH = 500;
 const PLAYBACK_STATUSES = ["playing", "paused"];
 
+function coerceBoolean(value) {
+    if (value === "true") return true;
+    if (value === "false") return false;
+    return Boolean(value);
+}
+
 class RoomNotFoundError extends Error {
     constructor(message = "Room not found") {
         super(message);
@@ -36,6 +42,14 @@ class NotInRoomError extends Error {
         super(message);
         this.name = "NotInRoomError";
         this.code = "NOT_IN_ROOM";
+    }
+}
+
+class TargetNotInRoomError extends Error {
+    constructor(message = "Target member is not in this room") {
+        super(message);
+        this.name = "TargetNotInRoomError";
+        this.code = "TARGET_NOT_IN_ROOM";
     }
 }
 
@@ -162,6 +176,15 @@ class RoomService {
         return { room, message };
     }
 
+    setMedia(roomId, socketId, { audio, video }) {
+        const room = this._assertRoom(roomId);
+        const member = room.members.get(socketId);
+        if (!member) throw new TargetNotInRoomError();
+        member.audioOn = coerceBoolean(audio);
+        member.videoOn = coerceBoolean(video);
+        return { socketId, displayName: member.displayName, audioOn: member.audioOn, videoOn: member.videoOn };
+    }
+
     resolveRoomBySocket(socketId) {
         const rooms = this.store.all();
         for (const room of rooms) {
@@ -178,6 +201,7 @@ module.exports.RoomNotFoundError = RoomNotFoundError;
 module.exports.RoomFullError = RoomFullError;
 module.exports.AlreadyInRoomError = AlreadyInRoomError;
 module.exports.NotInRoomError = NotInRoomError;
+module.exports.TargetNotInRoomError = TargetNotInRoomError;
 module.exports.InvalidPayloadError = InvalidPayloadError;
 module.exports.MAX_ROOM_MEMBERS = MAX_ROOM_MEMBERS;
 module.exports.MAX_CHAT_HISTORY = MAX_CHAT_HISTORY;
