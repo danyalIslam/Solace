@@ -266,8 +266,16 @@ describe("WebRTC relay + media presence", () => {
         const socket = ioc(`http://localhost:${port}`, { transports: ["websocket"] });
         const cfgP = new Promise((resolve) => socket.once("rtc:config", resolve));
         await new Promise((resolve, reject) => {
-            socket.once("connect", resolve);
-            socket.once("connect_error", reject);
+            const onConnect = () => {
+                socket.off("connect_error", onError);
+                resolve();
+            };
+            const onError = (e) => {
+                socket.off("connect", onConnect);
+                reject(e);
+            };
+            socket.once("connect_error", onError);
+            socket.once("connect", onConnect);
         });
         track(socket);
         const cfg = await cfgP;
