@@ -109,6 +109,10 @@ function createRoomHandler(io, roomService) {
                 const titlePayload = payload && payload.title;
                 const result = roomService.setTitle(room.id, socket.id, { title: titlePayload });
                 io.to(room.id).emit(SERVER.ROOM_TITLE_STATE, result);
+                const member = room.members.get(socket.id);
+                const actor = { socketId: socket.id, displayName: member ? member.displayName : "unknown" };
+                const { entry } = roomService.appendActivity(room.id, { type: "title", actor, detail: `set title to ${result.title}` });
+                io.to(room.id).emit(SERVER.ROOM_ACTIVITY, { entry });
             } catch (err) {
                 emitError(socket, err);
             }

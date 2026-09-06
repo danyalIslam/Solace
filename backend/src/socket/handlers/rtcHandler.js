@@ -61,6 +61,11 @@ function createRtcHandler(io, roomService) {
                     audio: member.audioOn,
                     video: member.videoOn
                 });
+                const memberRec = room.members.get(socket.id);
+                const actor = { socketId: socket.id, displayName: memberRec ? memberRec.displayName : "unknown" };
+                const detail = member.audioOn && member.videoOn ? "camera+mic on" : (member.videoOn ? "camera on" : (member.audioOn ? "mic on" : "camera+mic off"));
+                const { entry } = roomService.appendActivity(room.id, { type: "media", actor, detail });
+                io.to(room.id).emit(SERVER.ROOM_ACTIVITY, { entry });
             } catch (err) {
                 emitError(socket, err);
             }

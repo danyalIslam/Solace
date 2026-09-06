@@ -32,6 +32,13 @@ function createPlaybackHandler(io, roomService) {
         return room;
     }
 
+    function appendActivity(room, socket, detail) {
+        const member = room.members.get(socket.id);
+        const actor = { socketId: socket.id, displayName: member ? member.displayName : "unknown" };
+        const { entry } = roomService.appendActivity(room.id, { type: "playback", actor, detail });
+        io.to(room.id).emit(SERVER.ROOM_ACTIVITY, { entry });
+    }
+
     return {
         handlePlay(socket, payload) {
             const room = assertRoom(socket);
@@ -43,6 +50,7 @@ function createPlaybackHandler(io, roomService) {
                     track
                 });
                 broadcast(updatedRoom, change, socket.id);
+                appendActivity(updatedRoom, socket, change.track ? `played ${change.track.url}` : "played");
             } catch (err) {
                 emitError(socket, err);
             }
@@ -56,6 +64,7 @@ function createPlaybackHandler(io, roomService) {
                     status: "paused"
                 });
                 broadcast(updatedRoom, change, socket.id);
+                appendActivity(updatedRoom, socket, "paused playback");
             } catch (err) {
                 emitError(socket, err);
             }
@@ -70,6 +79,7 @@ function createPlaybackHandler(io, roomService) {
                     position
                 });
                 broadcast(updatedRoom, change, socket.id);
+                appendActivity(updatedRoom, socket, `seeked to ${change.position}s`);
             } catch (err) {
                 emitError(socket, err);
             }
@@ -84,6 +94,7 @@ function createPlaybackHandler(io, roomService) {
                     track
                 });
                 broadcast(updatedRoom, change, socket.id);
+                appendActivity(updatedRoom, socket, `set track ${change.track.url}`);
             } catch (err) {
                 emitError(socket, err);
             }

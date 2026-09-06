@@ -443,3 +443,47 @@ describe("room title", () => {
         assert.equal(host.connected, true);
     });
 });
+
+describe("activity entries from actions", () => {
+    test("wallpaper set produces a wallpaper-type entry", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        host.emit("wallpaper:set", { url: "http://w/1.png" });
+        await waitForEvent(host, "wallpaper:state");
+        const { joined } = await joinRoom(port, roomId, "Obs");
+        const entry = joined.state.activity.find((e) => e.type === "wallpaper");
+        assert.ok(entry, "wallpaper entry present");
+        assert.match(entry.detail, /wallpaper/i);
+    });
+
+    test("title set produces a title-type entry", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        host.emit("room:set_title", { title: "My Room" });
+        await waitForEvent(host, "room:title_state");
+        const { joined } = await joinRoom(port, roomId, "Obs");
+        const entry = joined.state.activity.find((e) => e.type === "title");
+        assert.ok(entry, "title entry present");
+        assert.match(entry.detail, /My Room/);
+    });
+
+    test("media change produces a media-type entry", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        host.emit("rtc:media", { audio: true, video: false });
+        await waitForEvent(host, "rtc:media_state");
+        const { joined } = await joinRoom(port, roomId, "Obs");
+        const entry = joined.state.activity.find((e) => e.type === "media");
+        assert.ok(entry, "media entry present");
+    });
+
+    test("playback play produces a playback-type entry", async () => {
+        const { port } = await boot();
+        const { client: host, roomId } = await createRoom(port, "Host");
+        host.emit("playback:play", { track: { url: "http://t/x.m3u8", title: "T", artist: "A" } });
+        await waitForEvent(host, "playback:state", (p) => p.status === "playing");
+        const { joined } = await joinRoom(port, roomId, "Obs");
+        const entry = joined.state.activity.find((e) => e.type === "playback");
+        assert.ok(entry, "playback entry present");
+    });
+});

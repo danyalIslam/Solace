@@ -23,6 +23,10 @@ function createWallpaperHandler(io, roomService) {
                     url: newUrl,
                     changedBy: socket.id
                 });
+                const member = updatedRoom.members.get(socket.id);
+                const actor = { socketId: socket.id, displayName: member ? member.displayName : "unknown" };
+                const { entry } = roomService.appendActivity(updatedRoom.id, { type: "wallpaper", actor, detail: `set wallpaper ${newUrl}` });
+                io.to(updatedRoom.id).emit(SERVER.ROOM_ACTIVITY, { entry });
             } catch (err) {
                 emitError(socket, err);
             }
