@@ -178,25 +178,37 @@ async function startRtcInternal({ audio, video }: { audio: boolean; video: boole
   const s = useRoomStore.getState();
   const cur = currentKinds();
   if (cur.audio === audio && cur.video === video) {
+    // Idempotent re-entry: still refresh the server flags. A socket reconnect /
+    // rebuild can drop media_state updates while local state stayed "on", so a
+    // peer can keep showing a frozen frame + "video on" long after we stopped.
     console.debug("[solace:FE] rtc startRtc idempotent skip", { me, audio, video });
+    s.setLocalMedia(audio, video);
+    socket.emit("rtc:media", { audio, video });
     return;
   }
   console.debug("[solace:FE] rtc startRtc", { me, audio, video, peers: peers.size, hadLocalStream: !!localStream });
 
-  if (audio) await enableKind("audio");
-  else disableKind("audio");
-  if (video) await enableKind("video");
-  else disableKind("video");
-
-  // Publish OUR OWN stream under our own socket id so the local user sees a
-  // self-preview tile; null clears it (video off → no own tile entry).
-  if (me) {
-    useRoomStore.getState().setRemoteStream(me, video ? localStream : null);
+  try {
+    if (audio) await enableKind("audio");
+    else disableKind("audio");
+    if (video) await enableKind("video");
+    else disableKind("video");
+  } finally {
+    // Announce the TRUE final state, not just the intent. enableKind can throw
+    // (camera/mic denied); if it does, the server must never be left advertising
+    // media we are not actually sending — that is exactly the frozen-frame bug
+    // (peer keeps a live track + "video on" forever when rtc:media never fires).
+    const actual = currentKinds();
+    s.setLocalMedia(actual.audio, actual.video);
+    socket.emit("rtc:media", { audio: actual.audio, video: actual.video });
+    if (me) {
+      // Publish OUR OWN stream under our own socket id so the local user sees a
+      // self-preview tile; null clears it (video off → no own tile entry).
+      useRoomStore.getState().setRemoteStream(me, actual.video ? localStream : null);
+    }
   }
 
-  const desired = { audio, video };
-  s.setLocalMedia(audio, video);
-  socket.emit("rtc:media", { audio, video });
+  const desired = { audio: currentKinds().audio, video: currentKinds().video };
 
   for (const [socketId, pc] of peers) {
     await reconcilePeer(socketId, pc, desired);

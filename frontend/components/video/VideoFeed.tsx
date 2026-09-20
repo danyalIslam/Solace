@@ -52,7 +52,13 @@ function RemoteStream({
     stream.addEventListener("addtrack", refresh);
     stream.addEventListener("removetrack", refresh);
     update();
+    // Track events (mute/ended/addtrack/removetrack) are not reliable after
+    // sender-side replaceTrack(null) — Chromium can keep the receiver track
+    // live+unmuted and silently stop painting new frames. Polling keeps
+    // videoActive honest even when no event fires.
+    const heal = setInterval(update, 2500);
     return () => {
+      clearInterval(heal);
       bound.forEach((t) => {
         t.removeEventListener("mute", update);
         t.removeEventListener("unmute", update);
